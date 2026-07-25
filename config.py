@@ -1,17 +1,28 @@
 """Configuration and constants for the Cartoon Generator."""
 import os
+from datetime import datetime
 from pathlib import Path
 
 
 # Base directories
 BASE_DIR = Path(__file__).parent.resolve()
-OUTPUT_DIR = BASE_DIR / "output"
+
+# Configurable output directory (env: CARTOON_OUTPUT_DIR)
+OUTPUT_DIR = Path(os.getenv("CARTOON_OUTPUT_DIR", str(BASE_DIR / "output")))
 CARTOON_DIR = OUTPUT_DIR / "cartoons"
 HISTORY_FILE = OUTPUT_DIR / "history.json"
 
+# Configurable image filename format (env: IMAGE_FILENAME_FORMAT)
+# Available placeholders: {description}, {datetime}, {date}, {time}
+# Example: "{description}_{datetime}" -> "claude-ai-20260725_233400.jpg"
+IMAGE_FILENAME_FORMAT = os.getenv(
+    "IMAGE_FILENAME_FORMAT",
+    "{description}_{datetime}"
+)
+
 # Ensure output directories exist
-OUTPUT_DIR.mkdir(exist_ok=True)
-CARTOON_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+CARTOON_DIR.mkdir(parents=True, exist_ok=True)
 
 # News sources - free APIs
 NEWS_SOURCES = {
@@ -41,8 +52,62 @@ DEDUP_WINDOW_DAYS = 30
 
 # Logging
 LOG_DIR = BASE_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "cartoon.log"
+
+
+def sanitize_filename(text: str, max_length: int = 40) -> str:
+    """Sanitize text for use in a filename.
+
+    - Lowercases everything
+    - Replaces spaces with hyphens
+    - Removes characters that are not alphanumeric, hyphens, or underscores
+    - Truncates to max_length
+    """
+    text = text.lower().strip()
+    text = text.replace(" ", "-")
+    text = "".join(c if c.isalnum() or c in "-_." else "" for c in text)
+    return text[:max_length]
+
+
+def build_filename(description: str, ext: str = ".jpg") -> str:
+    """Build the image filename using the configured format.
+
+    Args:
+        description: Short description of the cartoon/news topic.
+        ext: File extension including the dot (default: .jpg).
+
+    Returns:
+        A filename like 'claude-ai-20260725_233400.jpg'
+    """
+    now = datetime.now()
+    datetime_str = now.strftime("%Y%m%d_%H%M%S")
+    date_str = now.strftime("%Y%m%d")
+    time_str = now.strftime("%H%M%S")
+
+    # Sanitize the description for filename safety
+    safe_desc = sanitize_filename(description, max_length=50)
+
+    replacements = {
+        "{description}": safe_desc,
+        "{datetime}": datetime_str,
+        "{date}": date_str,
+        "{time}": time_str,
+    }
+
+    fmt = IMAGE_FILENAME_FORMAT
+    for placeholder, value in replacements.items():
+        fmt = fmt.replace(placeholder, value)
+
+    # Ensure the extension matches
+    for placeholder in replacements:
+        if fmt.endswith(placeholder):
+            fmt = fmt.replace(placeholder, "") + ext
+
+    if not fmt.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+        fmt += ext
+
+    return fmt
 
 # Max news articles to process per run
 MAX_ARTICLES = 5

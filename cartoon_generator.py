@@ -1,14 +1,13 @@
 """Generates funny cartoon images using free APIs."""
 import hashlib
 import logging
-import os
 import random
 import time
 from datetime import datetime
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from config import CARTOON_DIR, POLLINATIONS_BASE_URL
+from config import CARTOON_DIR, POLLINATIONS_BASE_URL, build_filename
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +21,7 @@ def generate_cartoon(comedy_analysis: dict) -> dict | None:
     cartoon_prompt = comedy_analysis.get("cartoon_prompt", "")
     title = comedy_analysis.get("title", "unknown")
     one_liner = comedy_analysis.get("one_liner", "")
+    article_url = comedy_analysis.get("article_url", "")
 
     if not cartoon_prompt:
         logger.warning("No cartoon prompt available; skipping image generation.")
@@ -33,13 +33,16 @@ def generate_cartoon(comedy_analysis: dict) -> dict | None:
     # Generate a deterministic seed from the title for reproducibility
     seed = int(hashlib.md5(title.encode()).hexdigest()[:8], 16) % (2**32 - 1)
 
+    # Use the article title as the description for filename
+    description_for_filename = title
+
     # Try multiple seeds if the first doesn't produce a good result
     for attempt in range(3):
         current_seed = seed + attempt * 1000
         url = POLLINATIONS_BASE_URL.format(prompt=enhanced_prompt, seed=current_seed)
 
         try:
-            filename = _save_image(url, title, current_seed)
+            filename = _save_image(url, description_for_filename, current_seed)
             if filename:
                 logger.info(f"Cartoon generated: {filename}")
                 return {
@@ -51,7 +54,7 @@ def generate_cartoon(comedy_analysis: dict) -> dict | None:
                     "one_liner": one_liner,
                     "comedian_angle": comedy_analysis.get("comedian_angle", ""),
                     "title": title,
-                    "article_url": comedy_analysis.get("article_url", ""),
+                    "article_url": article_url,
                 }
         except Exception as e:
             logger.warning(f"Image generation attempt {attempt + 1} failed: {e}")
@@ -74,8 +77,17 @@ def _enhance_prompt(prompt: str) -> str:
     return f"{enhancement} {prompt}"
 
 
-def _save_image(url: str, title: str, seed: int) -> str | None:
-    """Download and save the generated image."""
+def _save_image(url: str, description: str, seed: int) -> str | None:
+    """Download and save the generated image with configurable filename format.
+
+    Args:
+        url: The image generation URL.
+        description: Short description used in the filename.
+        seed: Random seed used for generation.
+
+    Returns:
+        The saved filename (relative to CARTOON_DIR), or None on failure.
+    """
     try:
         req = Request(url, headers={"User-Agent": "CartoonGenerator/1.0"})
         with urlopen(req, timeout=60) as response:
@@ -91,11 +103,17 @@ def _save_image(url: str, title: str, seed: int) -> str | None:
         # Safe to reopen after verify
         img = Image.open(BytesIO(image_data))
 
-        # Sanitize filename
-        safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in title)[:50]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"cartoon_{safe_title}_{timestamp}_{seed}.png"
+        # Build filename using the configured format
+        filename = build_filename(description, ext=".jpg")
         filepath = CARTOON_DIR / filename
+
+        # Handle collision: if file already exists, append a counter
+        counter = 1
+        base, ext = filename.rsplit(".", 1)
+        while filepath.exists():
+            filename = f"{base}_{counter}.{ext}"
+            filepath = CARTOON_DIR / filename
+            counter += 1
 
         with open(filepath, "wb") as f:
             f.write(image_data)
@@ -105,7 +123,7 @@ def _save_image(url: str, title: str, seed: int) -> str | None:
 
     except ImportError:
         logger.warning("Pillow not installed; saving raw image without validation.")
-        return _save_without_validation(url, title, seed)
+        return _save_without_validation(url, description, seed)
     except URLError as e:
         logger.warning(f"Failed to download image: {e}")
         return None
@@ -114,17 +132,24 @@ def _save_image(url: str, title: str, seed: int) -> str | None:
         return None
 
 
-def _save_without_validation(url: str, title: str, seed: int) -> str | None:
+def _save_without_validation(url: str, description: str, seed: int) -> str | None:
     """Fallback image saving without Pillow validation."""
     try:
         req = Request(url, headers={"User-Agent": "CartoonGenerator/1.0"})
         with urlopen(req, timeout=60) as response:
             image_data = response.read()
 
-        safe_title = "".join(c if c.isalnum() or c in " _-" else "_" for c in title)[:50]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"cartoon_{safe_title}_{timestamp}_{seed}.png"
+        # Build filename using the configured format
+        filename = build_filename(description, ext=".jpg")
         filepath = CARTOON_DIR / filename
+
+        # Handle collision
+        counter = 1
+        base, ext = filename.rsplit(".", 1)
+        while filepath.exists():
+            filename = f"{base}_{counter}.{ext}"
+            filepath = CARTOON_DIR / filename
+            counter += 1
 
         with open(filepath, "wb") as f:
             f.write(image_data)
