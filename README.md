@@ -113,41 +113,6 @@ The generator uses a flexible style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_
 | **Title banner** | Yellow banner at top with bold black **Burmese text** |
 | **Tone** | Humorous but wholesome, light satire, dramatic reactions + unbothered animal |
 
-### Module Responsibilities
-
-| Module | Responsibility | Key Functions |
-|---|---|---|---|
-| `config.py` | Constants, env vars, filename builder, logging setup | `build_filename()`, `sanitize_filename()`, `is_safe_url()`, `setup_logging()` |
-| `news_fetcher.py` | Fetch & parse news from diverse topic sources | `fetch_trending_news()`, `_fetch_rss_feed()`, `_sanitize_text()` |
-| `comedian_analyzer.py` | Generate comedy angles & scene descriptions | `analyze_article()`, `analyze_with_openai()`, `fallback_comedy_analysis()` |
-| `cartoon_generator.py` | Generate & save cartoon images | `generate_cartoon()`, `_save_image()`, `_enhance_prompt()`, `_generate_with_gemini()` |
-| `deduplication.py` | Track processed items, prevent repeats | `is_duplicate()`, `add_to_history()`, `cleanup_old_history()` |
-| `main.py` | Pipeline orchestration | `run_pipeline(max_articles=1)` |
-| `run_service.py` | Continuous background execution | `main()`, reuses `main.run_pipeline(max_articles=None)` |
-
-### Data Model
-
-Each stage transforms the data into a new shape:
-
-| Stage | Key Fields |
-|---|---|---|
-| **Article** (from fetcher) | `title`, `url`, `description`, `source`, `fetched_at` |
-| **Comedy Analysis** (from analyzer) | `comedian_angle`, `cartoon_prompt` (scene only), `one_liner` (Burmese), `used_fallback` |
-| **Enhanced Prompt** (from generator) | Visual style block + scene description (up to 1000 chars) |
-| **Cartoon Result** (from generator) | `filename`, `url`, `seed`, `generated_at`, `prompt`, `source` |
-| **History Entry** (in history.json) | `title`, `processed_at`, `cartoon_filename`, `article_url` |
-
-### Dependencies
-
-| Dependency | Purpose | Required? |
-|---|---|---|---|
-| `requests>=2.32.3` | HTTP calls for NewsAPI | Optional (RSS works without it) |
-| `Pillow>=10.0.0` | Image validation before saving | Optional (saves without validation) |
-| `openai>=1.0.0` | LLM-powered comedy analysis | Optional (built-in heuristic fallback) |
-| Standard library | XML parsing, logging, hashlib, etc. | **Required** |
-
-**Zero external dependencies required** — all dependencies have built-in graceful degradation. The system works with just a Gemini API key.
-
 ### Security Controls
 
 | Control | Implementation |
