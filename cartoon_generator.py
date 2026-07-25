@@ -4,6 +4,7 @@ import logging
 import random
 import time
 from datetime import datetime
+from typing import Any, Dict, Optional
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
@@ -12,7 +13,7 @@ from config import CARTOON_DIR, POLLINATIONS_BASE_URL, build_filename
 logger = logging.getLogger(__name__)
 
 
-def generate_cartoon(comedy_analysis: dict) -> dict | None:
+def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Generate a funny cartoon image from the comedy analysis.
 
     Uses Pollinations.ai (free, no API key required).
@@ -77,17 +78,17 @@ def _enhance_prompt(prompt: str) -> str:
     return f"{enhancement} {prompt}"
 
 
-def _save_image(url: str, description: str, seed: int) -> str | None:
+def _save_image(url: str, description: str, seed: int) -> Optional[str]:
     """Download and save the generated image with configurable filename format.
 
-    Args:
-        url: The image generation URL.
-        description: Short description used in the filename.
-        seed: Random seed used for generation.
-
-    Returns:
-        The saved filename (relative to CARTOON_DIR), or None on failure.
+    Security: validates URL scheme, prevents path traversal in filenames,
+    restricts output to CARTOON_DIR only.
     """
+    # Validate URL scheme
+    if not url.startswith("https://"):
+        logger.warning(f"Rejected unsafe image URL scheme: {url}")
+        return None
+
     try:
         req = Request(url, headers={"User-Agent": "CartoonGenerator/1.0"})
         with urlopen(req, timeout=60) as response:
@@ -105,7 +106,19 @@ def _save_image(url: str, description: str, seed: int) -> str | None:
 
         # Build filename using the configured format
         filename = build_filename(description, ext=".jpg")
+
+        # Prevent path traversal — filename must be a single component
+        if "/" in filename or "\\" in filename or filename.startswith("."):
+            logger.warning(f"Rejected suspicious filename: {filename}")
+            return None
+
         filepath = CARTOON_DIR / filename
+
+        # Resolve and verify the final path is still inside CARTOON_DIR
+        resolved = filepath.resolve()
+        if not str(resolved).startswith(str(CARTOON_DIR.resolve())):
+            logger.warning(f"Path traversal detected: {filepath}")
+            return None
 
         # Handle collision: if file already exists, append a counter
         counter = 1
@@ -132,8 +145,16 @@ def _save_image(url: str, description: str, seed: int) -> str | None:
         return None
 
 
-def _save_without_validation(url: str, description: str, seed: int) -> str | None:
-    """Fallback image saving without Pillow validation."""
+def _save_without_validation(url: str, description: str, seed: int) -> Optional[str]:
+    """Fallback image saving without Pillow validation.
+
+    Security: validates URL scheme, prevents path traversal in filenames.
+    """
+    # Validate URL scheme
+    if not url.startswith("https://"):
+        logger.warning(f"Rejected unsafe image URL scheme: {url}")
+        return None
+
     try:
         req = Request(url, headers={"User-Agent": "CartoonGenerator/1.0"})
         with urlopen(req, timeout=60) as response:
@@ -141,7 +162,19 @@ def _save_without_validation(url: str, description: str, seed: int) -> str | Non
 
         # Build filename using the configured format
         filename = build_filename(description, ext=".jpg")
+
+        # Prevent path traversal
+        if "/" in filename or "\\" in filename or filename.startswith("."):
+            logger.warning(f"Rejected suspicious filename: {filename}")
+            return None
+
         filepath = CARTOON_DIR / filename
+
+        # Resolve and verify the final path is still inside CARTOON_DIR
+        resolved = filepath.resolve()
+        if not str(resolved).startswith(str(CARTOON_DIR.resolve())):
+            logger.warning(f"Path traversal detected: {filepath}")
+            return None
 
         # Handle collision
         counter = 1

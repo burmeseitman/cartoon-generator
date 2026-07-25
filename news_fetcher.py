@@ -8,6 +8,7 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 import requests
+from typing import Any, Dict, List
 
 from config import (
     NEWS_SOURCES,
@@ -15,18 +16,41 @@ from config import (
     NEWS_API_URL,
     MAX_ARTICLES,
     OUTPUT_DIR,
+    is_safe_url,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _fetch_rss_feed(url: str) -> list[dict]:
-    """Fetch articles from an RSS feed URL."""
+def _sanitize_text(text: str) -> str:
+    """Sanitize text from external sources.
+
+    Strips control characters and normalizes whitespace to prevent
+    log injection and data corruption.
+    """
+    # Remove control characters except newline/tab
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    # Decode common HTML entities
+    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+    text = text.replace("&quot;", '"').replace("&#39;", "'")
+    return text.strip()
+
+
+def _fetch_rss_feed(url: str) -> List[Dict[str, Any]]:
+    """Fetch articles from an RSS feed URL.
+
+    Security: validates URL scheme, sets explicit timeout, sanitizes output.
+    """
+    # Validate URL scheme to prevent SSRF / file:// attacks
+    if not url.startswith(("http://", "https://")):
+        logger.warning(f"Rejected unsafe URL scheme: {url}")
+        return []
+
     articles = []
     try:
         req = Request(url, headers={"User-Agent": "CartoonGenerator/1.0"})
         with urlopen(req, timeout=30) as response:
-            raw = response.read().decode("utf-8")
+            raw = response.read().decode("utf-8", errors="replace")
 
         # Parse simple RSS XML
         titles = re.findall(r"<title>(.*?)</title>", raw)
@@ -35,10 +59,13 @@ def _fetch_rss_feed(url: str) -> list[dict]:
         pub_dates = re.findall(r"<pubDate>(.*?)</pubDate>", raw)
 
         for i in range(min(len(titles), 15)):  # Limit per source
+            # Sanitize description: strip HTML tags and control characters
             desc_clean = re.sub(r"<[^>]+>", "", descriptions[i] if i < len(descriptions) else "").strip()
+            # Remove control characters (except newline/tab) to prevent log injection
+            desc_clean = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", desc_clean)
             articles.append(
                 {
-                    "title": titles[i].replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">"),
+                    "title": _sanitize_text(titles[i]),
                     "url": links[i] if i < len(links) else "",
                     "description": desc_clean[:500],
                     "published_at": pub_dates[i] if i < len(pub_dates) else datetime.now().isoformat(),
@@ -54,7 +81,7 @@ def _fetch_rss_feed(url: str) -> list[dict]:
     return articles
 
 
-def _fetch_newsapi(key: str) -> list[dict]:
+def _fetch_newsapi(key: str) -> List[Dict[str, Any]]:
     """Fetch articles from NewsAPI.org (requires API key)."""
     if not key:
         return []
@@ -96,7 +123,7 @@ def _fetch_newsapi(key: str) -> list[dict]:
     return articles
 
 
-def fetch_trending_news() -> list[dict]:
+def fetch_trending_news() -> List[Dict[str, Any]]:
     """Fetch trending AI and cybersecurity news from all available sources.
 
     Returns a list of article dicts, deduplicated by title similarity.
@@ -105,6 +132,9 @@ def fetch_trending_news() -> list[dict]:
 
     # Fetch from RSS feeds (free, no key needed)
     for source_key, source_info in NEWS_SOURCES.items():
+        if not is_safe_url(source_info["url"]):
+            logger.warning(f"Skipping unsafe news source: {source_info['name']}")
+            continue
         logger.info(f"Fetching from {source_info['name']}...")
         articles = _fetch_rss_feed(source_info["url"])
         all_articles.extend(articles)
@@ -126,7 +156,7 @@ def fetch_trending_news() -> list[dict]:
     return unique[:MAX_ARTICLES]
 
 
-def _deduplicate_titles(articles: list[dict], threshold: float = 0.8) -> list[dict]:
+def _deduplicate_titles(articles: List[Dict[str, Any]], threshold: float = 0.8) -> List[Dict[str, Any]]:
     """Remove articles with highly similar titles."""
     unique = []
     for article in articles:
@@ -153,7 +183,7 @@ def _title_similarity(a: str, b: str) -> float:
     return len(intersection) / len(union)
 
 
-def save_fetched_news(articles: list[dict]):
+def save_fetched_news(articles: List[Dict[str, Any]]):
     """Save fetched news to a JSON file for debugging."""
     path = OUTPUT_DIR / "fetched_news.json"
     with open(path, "w", encoding="utf-8") as f:

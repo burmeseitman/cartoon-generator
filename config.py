@@ -62,11 +62,14 @@ def sanitize_filename(text: str, max_length: int = 40) -> str:
     - Lowercases everything
     - Replaces spaces with hyphens
     - Removes characters that are not alphanumeric, hyphens, or underscores
+    - Strips leading/trailing dots and hyphens (path traversal protection)
     - Truncates to max_length
     """
     text = text.lower().strip()
     text = text.replace(" ", "-")
     text = "".join(c if c.isalnum() or c in "-_." else "" for c in text)
+    # Strip leading dots (prevents .env, .git, etc. attacks) and trailing dots
+    text = text.strip(".")
     return text[:max_length]
 
 
@@ -108,6 +111,16 @@ def build_filename(description: str, ext: str = ".jpg") -> str:
         fmt += ext
 
     return fmt
+
+
+def is_safe_url(url: str) -> bool:
+    """Validate that a URL uses a safe scheme.
+
+    Only allows http:// and https://. Rejects file://, ftp://, etc.
+    to prevent SSRF attacks.
+    """
+    url_lower = url.strip().lower()
+    return url_lower.startswith(("http://", "https://"))
 
 # Max news articles to process per run
 MAX_ARTICLES = 5

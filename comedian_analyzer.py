@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+from typing import Any, Dict, Optional
 
 from config import OPENAI_API_KEY, OPENAI_MODEL
 
@@ -33,7 +34,7 @@ URL: {url}
 """
 
 
-def analyze_with_openai(title: str, description: str, url: str) -> dict | None:
+def analyze_with_openai(title: str, description: str, url: str) -> Optional[Dict[str, Any]]:
     """Use OpenAI to get a comedian's analysis of the news article.
 
     Returns a dict with comedian_angle, cartoon_prompt, one_liner.
@@ -72,7 +73,7 @@ def analyze_with_openai(title: str, description: str, url: str) -> dict | None:
     return None
 
 
-def _extract_json(text: str) -> str | None:
+def _extract_json(text: str) -> Optional[str]:
     """Try to extract a JSON object from text that may contain markdown or other content."""
     # Look for JSON between ```json ... ``` or just {...}
     import re
@@ -90,7 +91,7 @@ def _extract_json(text: str) -> str | None:
     return None
 
 
-def fallback_comedy_analysis(title: str, description: str) -> dict:
+def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
     """Generate a basic comedy analysis without AI (fallback)."""
     # Simple heuristic: extract key topics and create a template
     words = title.lower().split()
@@ -112,7 +113,7 @@ def fallback_comedy_analysis(title: str, description: str) -> dict:
     }
 
 
-def analyze_article(article: dict) -> dict:
+def analyze_article(article: dict) -> Dict[str, Any]:
     """Full analysis pipeline for one article.
 
     Tries OpenAI first, falls back to heuristic analysis.

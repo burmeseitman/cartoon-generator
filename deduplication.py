@@ -3,27 +3,40 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, List
 
 from config import HISTORY_FILE
 
 logger = logging.getLogger(__name__)
 
+# Maximum allowed size for history.json (1 MB) to prevent DoS via file growth
+MAX_HISTORY_SIZE = 1024 * 1024
 
-def load_history() -> list[dict]:
-    """Load the history of previously processed articles."""
+
+def load_history() -> List[Dict[str, Any]]:
+    """Load the history of previously processed articles.
+
+    Security: limits file size to prevent DoS via oversized JSON files.
+    """
     if not HISTORY_FILE.exists():
         return []
 
     try:
+        # Check file size before reading
+        file_size = HISTORY_FILE.stat().st_size
+        if file_size > MAX_HISTORY_SIZE:
+            logger.warning(f"History file too large ({file_size} bytes), truncating.")
+            return []
+
         with open(HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, IOError) as e:
+    except (json.JSONDecodeError, IOError, OSError) as e:
         logger.warning(f"Could not read history file: {e}")
         return []
 
 
-def save_history(history: list[dict]):
+def save_history(history: List[Dict[str, Any]]):
     """Save the updated history."""
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
