@@ -235,13 +235,16 @@ def _enhance_prompt(prompt: str) -> str:
     The incoming prompt describes the scene/narrative. Truncates to 2000 chars.
     """
     style_prefix = (
-        "Warm cartoon illustration, soft watercolor-like coloring, gentle gradients, "
-        "no harsh black outlines. Cute rounded character designs with big expressive eyes. "
-        "Burmese people with warm light-brown/peach skin, colorful casual or work clothing. "
+        "Hand-drawn Burmese cartoon illustration, bold black ink outlines, "
+        "watercolor wash coloring, organic hand-painted feel. "
+        "Expressive character designs with big eyes and dramatic eyebrows. "
+        "Burmese people with warm light-brown/peach skin, thanaka on cheeks, "
+        "longyi and casual clothing. "
         "Yellow title banner at top with bold black Burmese text. "
-        "Speech bubbles: white rounded ovals with thin black outlines, Burmese text inside. "
+        "Speech bubbles: hand-drawn white ovals with thin ink outlines, Burmese text inside. "
         "One animal in the scene with a completely unbothered 'don't care' expression or lazy posture. "
-        "Warm beige/cream background tones (#f5e6c8), soft pastel colors throughout. "
+        "Ink wash or loose sketch line shading, no smooth digital gradients. "
+        "Warm beige/cream paper background (#f5e6c8), soft watercolor palette. "
         "Simple background with 3-5 setting-appropriate props. "
         "Artist signature in bottom-right corner. "
     )
