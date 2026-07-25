@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Any
 
-from config import OPENAI_API_KEY, OPENAI_MODEL
+from config import GEMINI_API_KEY, GEMINI_TEXT_MODEL, OPENAI_API_KEY, OPENAI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,68 @@ def analyze_with_openai(title: str, description: str, url: str) -> dict[str, Any
     return None
 
 
+def analyze_with_gemini_text(title: str, description: str, url: str) -> dict[str, Any] | None:
+    """Use Gemini text model to get a comedian's analysis with correct Burmese.
+
+    Returns a dict with comedian_angle, cartoon_prompt, one_liner.
+    Returns None if API is unavailable or fails.
+    """
+    if not GEMINI_API_KEY:
+        logger.warning("GEMINI_API_KEY not set; skipping Gemini text analysis.")
+        return None
+
+    import urllib.request
+    from urllib.request import Request
+
+    api_url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_TEXT_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+
+    prompt = COMEDY_ANALYSIS_PROMPT.format(title=title, description=description, url=url)
+
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 1.2,
+            "maxOutputTokens": 500,
+        },
+    }).encode("utf-8")
+
+    try:
+        req = Request(
+            api_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as response:
+            raw = response.read().decode("utf-8")
+            data = json.loads(raw)
+
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.warning("Gemini text returned no candidates.")
+            return None
+
+        content = candidates[0].get("content", {}).get("parts", [])
+        if not content:
+            logger.warning("Gemini text returned no content parts.")
+            return None
+
+        text = content[0].get("text", "").strip()
+        json_str = _extract_json(text)
+        if json_str:
+            result = json.loads(json_str)
+            logger.info(f"Gemini comedy analysis generated for: {title[:50]}...")
+            return result
+
+    except Exception as e:
+        logger.warning(f"Gemini text analysis failed: {e}")
+
+    return None
+
+
 def _extract_json(text: str) -> str | None:
     """Try to extract a JSON object from text that may contain markdown or other content."""
     # Look for JSON between ```json ... ``` or just {...}
@@ -139,18 +201,27 @@ def fallback_comedy_analysis(title: str, description: str) -> dict[str, Any]:
 def analyze_article(article: dict) -> dict[str, Any]:
     """Full analysis pipeline for one article.
 
-    Tries OpenAI first, falls back to heuristic analysis.
+    Tries: OpenAI → Gemini text → heuristic fallback.
     """
     title = article.get("title", "")
     description = article.get("description", "")
 
+    # Try OpenAI first (best quality)
     result = analyze_with_openai(title, description, article.get("url", ""))
     if result:
         result["title"] = title
         result["article_url"] = article.get("url", "")
         return result
 
-    # Fallback
+    # Try Gemini text (correct Burmese dialogue)
+    result = analyze_with_gemini_text(title, description, article.get("url", ""))
+    if result:
+        result["title"] = title
+        result["article_url"] = article.get("url", "")
+        result["used_fallback"] = False
+        return result
+
+    # Heuristic fallback
     fallback = fallback_comedy_analysis(title, description)
     fallback["title"] = title
     fallback["article_url"] = article.get("url", "")

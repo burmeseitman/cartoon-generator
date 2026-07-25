@@ -67,6 +67,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-image-preview")
 GEMINI_IMAGE_SIZE = os.getenv("GEMINI_IMAGE_SIZE", "1K")
 
+# Gemini text model for comedy analysis (alternative to OpenAI)
+GEMINI_TEXT_MODEL = os.getenv("GEMINI_TEXT_MODEL", "gemini-3.1-flash-image-preview")
+
 # Pollinations.ai (fallback, free, no API key needed)
 POLLINATIONS_BASE_URL = "https://image.pollinations.ai"
 
