@@ -35,7 +35,7 @@ cp .env.example .env
 export NEWS_API_KEY=your_newsapi_key            # https://newsapi.org
 export OPENAI_API_KEY=your_openai_key           # https://platform.openai.com (comedy analysis)
 
-# Output Configuration (NEW)
+# Output Configuration
 export CARTOON_OUTPUT_DIR=./output              # Where generated images are saved
 export IMAGE_FILENAME_FORMAT="{description}_{datetime}"  # Filename pattern
 ```
@@ -65,351 +65,29 @@ cartoon-generator/
 
 ## Architecture
 
-### 1. High-Level System Overview
+### System Overview
+
+The system consists of **four core modules** orchestrated by `main.py`:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        CARTOON GENERATOR SYSTEM                             │
-│                                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌────────────┐  │
-│  │   NEWS      │    │   COMEDY    │    │   CARTOON   │    │  OUTPUT    │  │
-│  │  FETCHER    │───▶│   ANALYZER  │───▶│ GENERATOR   │───▶│ FOLDER     │  │
-│  │             │    │             │    │             │    │            │  │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └────────────┘  │
-│         │                  │                  │                            │
-│         ▼                  ▼                  ▼                            │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                     │
-│  │ Google News │    │  OpenAI     │    │Pollinations │                     │
-│  │ RSS Feeds   │    │  (GPT)      │    │  .ai (free) │                     │
-│  │             │    │             │    │             │                     │
-│  │ NewsAPI.org │    │  Fallback   │    │  .jpg/.png  │                     │
-│  │ (optional)  │    │  Heuristic  │    │  files      │                     │
-│  └─────────────┘    └─────────────┘    └─────────────┘                     │
-│         │                  │                  │                            │
-│         └──────────────────┼──────────────────┘                            │
-│                            ▼                                               │
-│                  ┌─────────────────┐                                       │
-│                  │  DEDUPLICATION   │                                       │
-│                  │  CHECK (30-day)  │                                       │
-│                  └────────┬────────┘                                       │
-│                           ▼                                                │
-│                  ┌─────────────────┐                                       │
-│                  │  history.json   │                                       │
-│                  │  (local state)  │                                       │
-│                  └─────────────────┘                                       │
-└─────────────────────────────────────────────────────────────────────────────┘
+News Fetcher → Comedian Analyzer → Cartoon Generator → Output Folder
+     │               │                    │
+     ▼               ▼                    ▼
+Google News RSS   OpenAI / Fallback    Pollinations.ai
+NewsAPI (opt.)    Heuristic            Free image gen
 ```
 
-### 2. Deployment & Runtime Architecture
+A **deduplication gate** sits between fetching and analysis, checking `history.json` against a 30-day window to prevent re-processing the same story.
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                         BACKGROUND JOB RUNTIME                           │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                     Process (Python)                              │   │
-│  │                                                                  │   │
-│  │  main.py / run_service.py                                        │   │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐                 │   │
-│  │  │ Pipeline   │  │ Pipeline   │  │ Pipeline   │                 │   │
-│  │  │ Step 1:    │→│ Step 2:    │→│ Step 3:    │                 │   │
-│  │  │ Fetch News │  │ Analyze    │  │ Generate   │                 │   │
-│  │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘                 │   │
-│  │        │               │               │                         │   │
-│  │        ▼               ▼               ▼                         │   │
-│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐                 │   │
-│  │  │ RSS Parser │  │ LLM /      │  │ HTTP DL +  │                 │   │
-│  │  │ (XML)      │  │ Heuristic  │  │ Pillow     │                 │   │
-│  │  └────────────┘  └────────────┘  └────────────┘                 │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                     Filesystem Layout                             │   │
-│  │                                                                  │   │
-│  │  output/                                                         │   │
-│  │  ├── cartoons/  ← *.jpg generated images                        │   │
-│  │  ├── fetched_news.json ← raw articles (debug)                   │   │
-│  │  └── history.json    ← dedup state (≤1 MB)                      │   │
-│  │                                                                  │   │
-│  │  logs/                                                           │   │
-│  │  └── cartoon.log    ← application log                          │   │
-│  │                                                                  │   │
-│  │  .env            ← secrets (gitignored)                         │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │                     Scheduling Options                           │   │
-│  │                                                                  │   │
-│  │  ┌──────────┐  ┌──────────────┐  ┌──────────────────┐          │   │
-│  │  │  cron    │  │ systemd timer │  │ run_service.py   │          │   │
-│  │  │ (manual) │  │ (Linux)      │  │ --continuous     │          │   │
-│  │  └──────────┘  └──────────────┘  └──────────────────┘          │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+### Pipeline Flow
 
-### 3. Pipeline Sequence Diagram
+1. **Fetch** — Queries Google News RSS (free) and optional NewsAPI for trending AI & cybersecurity articles
+2. **Deduplicate** — Compares titles using Jaccard similarity; skips articles processed within the past 30 days
+3. **Analyze** — Uses OpenAI GPT (or built-in heuristic fallback) to generate a comedic angle, cartoon image prompt, and one-liner joke
+4. **Generate** — Sends the enhanced prompt to Pollinations.ai (free, no key), validates the image with Pillow, saves it with a configurable filename format
+5. **Record** — Adds the article to `history.json` so it won't be reprocessed
 
-```
-  Scheduler    main.py     news_fetcher   comedian_analy   cartoon_gen   deduplicat   Filesystem
-     │             │             │               │              │             │            │
-     │ ┌───────────┤             │               │              │             │            │
-     │ │ trigger   │             │               │              │             │            │
-     │ │──────────▶│             │               │              │             │            │
-     │ │           │             │               │              │             │            │
-     │ │           │run_pipeline()              │              │             │            │
-     │ │           │─────────────┤               │              │             │            │
-     │ │           │             │               │              │             │            │
-     │ │           │             │fetch_trending_news()         │             │            │
-     │ │           │             │────┐          │              │             │            │
-     │ │           │             │    │Google   │              │             │            │
-     │ │           │             │    │News RSS │              │             │            │
-     │ │           │             │    └─┐       │              │             │            │
-     │ │           │             │     │       │              │             │            │
-     │ │           │             │     │NewsAPI│              │             │            │
-     │ │           │             │     │(opt.) │              │             │            │
-     │ │           │             │     └──┬────┘              │             │            │
-     │ │           │             │      │                        │             │            │
-     │ │           │             │◀─────┘                        │             │            │
-     │ │           │             │articles[]                    │             │            │
-     │ │           │             │                               │             │            │
-     │ │           │             │               ┌──────────────┘             │            │
-     │ │           │             │               │                              │            │
-     │ │           │             │               │for each article:             │            │
-     │ │           │             │               │                              │            │
-     │ │           │             │               │is_duplicate(title)?          │            │
-     │ │           │             │               │──────────────┐               │            │
-     │ │           │             │               │              │               │load_history│
-     │ │           │             │               │              │               │─────────▶│
-     │ │           │             │               │              │               │          │
-     │ │           │             │               │◀═════════════│══════════════│history[]  │
-     │ │           │             │               │  not dup / skip              │          │
-     │ │           │             │               │                              │            │
-     │ │           │             │               │analyze_article(article)     │            │
-     │ │           │             │               │────┐                         │            │
-     │ │           │             │               │    │OpenAI call (if key)    │            │
-     │ │           │             │               │    │────┐                   │            │
-     │ │           │             │               │    │    │                  │            │
-     │ │           │             │               │    │◀───┘                  │            │
-     │ │           │             │               │    │JSON: {angle,prompt,   │            │
-     │ │           │             │               │    │  one_liner}           │            │
-     │ │           │             │               │    │                       │            │
-     │ │           │             │               │    │fallback if no key     │            │
-     │ │           │             │               │◀───┘                       │            │
-     │ │           │             │               │◀────┘                      │            │
-     │ │           │             │               │analysis[]                 │            │
-     │ │           │             │               │                            │            │
-     │ │           │             │               │generate_cartoon(analysis)  │            │
-     │ │           │             │               │────┐                       │            │
-     │ │           │             │               │    │enhance prompt         │            │
-     │ │           │             │               │    │────┐                 │            │
-     │ │           │             │               │    │    │HTTP GET         │            │
-     │ │           │             │               │    │    │────┐            │            │
-     │ │           │             │               │    │    │    │Pollinations│            │
-     │ │           │             │               │    │    │    │.ai API     │            │
-     │ │           │             │               │    │    │    │──────────▶│            │
-     │ │           │             │               │    │    │    │            │            │
-     │ │           │             │               │    │    │◀───┘            │            │
-     │ │           │             │               │    │    │image bytes      │            │
-     │ │           │             │               │    │◀───┘                 │            │
-     │ │           │             │               │    │                      │            │
-     │ │           │             │               │    │Pillow verify()       │            │
-     │ │           │             │               │    │                      │            │
-     │ │           │             │               │    │build_filename()      │            │
-     │ │           │             │               │    │────┐                 │            │
-     │ │           │             │               │    │    │write to disk    │            │
-     │ │           │             │               │    │    │────┐            │            │
-     │ │           │             │               │    │    │    │*.jpg file  │            │
-     │ │           │             │               │    │    │◀───┘            │            │
-     │ │           │             │               │    │◀───┘                 │            │
-     │ │           │             │               │    │result[]             │            │
-     │ │           │             │               │◀───┘                      │            │
-     │ │           │             │               │                            │            │
-     │ │           │             │               │add_to_history(entry)      │            │
-     │ │           │             │               │───────────┐               │            │
-     │ │           │             │               │           │               │write history│
-     │ │           │             │               │           │               │────────────▶│
-     │ │           │             │               │           │               │             │
-     │ │           │             │               │◀══════════│══════════════│updated[]    │
-     │ │           │             │               │                            │             │
-     │ │           │             │             next article...                │             │
-     │ │           │             │                                            │             │
-     │ │           │◀═════════════════════════════════════════════════════════│             │
-     │ │           │summary: N generated, M skipped                          │             │
-     │ │ ◀─────────┤                                                            │
-     │ │  done                                                                     │
-```
-
-### 4. Module Interaction Map
-
-```
-                    ┌─────────────────────────────────────────┐
-                    │              config.py                  │
-                    │  ┌───────────────────────────────────┐  │
-                    │  │ ENV VARS: CARTOON_OUTPUT_DIR      │  │
-                    │  │         IMAGE_FILENAME_FORMAT     │  │
-                    │  │         NEWS_API_KEY              │  │
-                    │  │         OPENAI_API_KEY            │  │
-                    │  │  ┌─────────────────────────────┐  │  │
-                    │  │  │ CONSTANTS:                    │  │  │
-                    │  │  │   MAX_ARTICLES = 5            │  │  │
-                    │  │  │   DEDUP_WINDOW_DAYS = 30      │  │  │
-                    │  │  │   MAX_HISTORY_SIZE = 1MB      │  │  │
-                    │  │  │   NEWS_SOURCES (RSS URLs)     │  │  │
-                    │  │  │   POLLINATIONS_BASE_URL       │  │  │
-                    │  │  └─────────────────────────────┘  │  │
-                    │  │  ┌─────────────────────────────┐  │  │
-                    │  │  │ HELPERS:                      │  │  │
-                    │  │  │   sanitize_filename(text)     │  │  │
-                    │  │  │   build_filename(desc)        │  │  │
-                    │  │  │   is_safe_url(url)            │  │  │
-                    │  │  └─────────────────────────────┘  │  │
-                    │  └───────────────────────────────────┘  │
-                    └────────┬────────┬────────┬────────┬─────┘
-                             │        │        │        │
-              ┌──────────────┘        │        │        └──────────────┐
-              ▼                        │        │                       ▼
-     ┌─────────────────┐              │        │            ┌─────────────────┐
-     │  news_fetcher.py │              │        │            │ cartoon_generator│
-     │                  │              │        │            │                 │
-     │ fetches news →   │              │        │            │ downloads image │
-     │ articles[]       │              │        │            │ validates PNG/JPG│
-     │                  │              │        │            │ saves to disk   │
-     └────────┬─────────┘              │        │            └────────┬────────┘
-              │                        │        │                    │
-              │  articles[]            │        │   result[]          │
-              ▼                        │        │                    ▼
-     ┌─────────────────┐              │        │            ┌─────────────────┐
-     │ comedian_analy-  │              │        │            │   deduplication │
-     │ zer.py           │              │        │            │   .py            │
-     │                  │              │        │            │                 │
-     │ LLM or heuristic │              │        │            │ is_duplicate()  │
-     │ → analysis dict  │              │        │            │ add_to_history()│
-     │                  │              │        │            │ cleanup()       │
-     └────────┬─────────┘              │        │            └────────┬────────┘
-              │                        │        │                    │
-              │  analysis[]            │        │   history[]         │
-              ▼                        │        │                    ▼
-     ┌─────────────────────────────────┴────────┴─────────────────────────┐
-     │                            main.py                                  │
-     │   Orchestrates the pipeline: fetch → dedup → analyze → generate    │
-     │   Logs progress, counts generated/skipped, writes summary          │
-     └────────────────────────────────────────────────────────────────────┘
-```
-
-### 5. Data Model
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ ARTICLE (from news_fetcher)                                          │
-│ ┌──────────────────┬───────────────────────────────────────────────┐│
-│ │ title            │ "Anthropic Releases Claude Opus 2"            ││
-│ │ url              │ "https://example.com/news/..."                ││
-│ │ description      │ "Short summary of the article..."             ││
-│ │ published_at     │ "2026-07-25T14:30:00Z"                        ││
-│ │ source           │ "google_news" / "newsapi"                     ││
-│ │ fetched_at       │ "2026-07-25T15:00:00+08:00"                   ││
-│ └──────────────────┴───────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────┘
-         │
-         │ comedian_analyzer.analyze_article()
-         ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ COMEDY_ANALYSIS (from comedian_analyzer)                            │
-│ ┌──────────────────┬───────────────────────────────────────────────┐│
-│ │ comedian_angle   │ "The irony of AI writing jokes about itself..."││
-│ │ cartoon_prompt   │ "A funny satirical cartoon showing..."        ││
-│ │ one_liner        │ "When AI writes jokes about AI..."            ││
-│ │ title            │ (copy from article)                           ││
-│ │ article_url      │ (copy from article)                           ││
-│ │ used_fallback    │ true/false                                    ││
-│ └──────────────────┴───────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────────┘
-         │
-         │ cartoon_generator.generate_cartoon()
-         ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ CARTOON_RESULT (from cartoon_generator)                             │
-│ ┌──────────────────┬───────────────────────────────────────────────┐│
-│ │ filename         │ "anthropic-claude-20260725_150000.jpg"        ││
-│ │ url              │ Pollinations generation URL                   ││
-│ │ seed             │ 3847562910                                    ││
-│ │ prompt           │ Enhanced cartoon prompt                       ││
-│ │ generated_at     │ "2026-07-25T15:00:05+08:00"                   ││
-│ │ one_liner        │ (copy from analysis)                          ││
-│ │ comedian_angle   │ (copy from analysis)                          ││
-│ │ title            │ (copy from article)                           ││
-│ │ article_url      │ (copy from article)                           ││
-│ └──────────────────┴───────────────────────────────────────────────┘│
-│         │                                                           │
-│         │ saved to: output/cartoons/<filename>                      │
-└─────────────────────────────────────────────────────────────────────┘
-         │
-         │ deduplication.add_to_history()
-         ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ HISTORY_ENTRY (in history.json)                                     │
-│ ┌──────────────────┬───────────────────────────────────────────────┐│
-│ │ title            │ "Anthropic Releases Claude Opus 2"            ││
-│ │ processed_at     │ "2026-07-25T15:00:05+08:00"                   ││
-│ │ cartoon_filename │ "anthropic-claude-20260725_150000.jpg"        ││
-│ │ one_liner        │ (copy from analysis)                          ││
-│ │ article_url      │ (copy from article)                           ││
-│ └──────────────────┴───────────────────────────────────────────────┘│
-│         │                                                           │
-│         │ stored in: output/history.json                            │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### 6. Security Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        SECURITY CONTROLS                            │
-│                                                                     │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │
-│  │  INPUT VALIDATION │  │  URL SANITIZATION│  │  PATH PROTECTION │  │
-│  │                  │  │                  │  │                  │  │
-│  │ • Control chars  │  │ • Scheme whitelist│  │ • No ../ in     │  │
-│  │   stripped       │  │   http/https only│  │   filenames      │  │
-│  │ • HTML entities  │  │ • SSRF prevention│  │ • Resolved path │  │
-│  │   decoded safely │  │   blocks file:// │  │   verification  │  │
-│  │ • Max length caps│  │   ftp:// etc.    │  │ • Inside        │  │
-│  │   (500 desc,     │  │                  │  │   CARTOON_DIR   │  │
-│  │    50 filename)  │  │                  │  │                  │  │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘  │
-│           │                     │                     │              │
-│           └─────────────────────┼─────────────────────┘              │
-│                                 ▼                                    │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    RUNTIME SAFETY                             │   │
-│  │                                                               │   │
-│  │  • All HTTP calls have explicit timeouts (30-60s)            │   │
-│  │  • No eval/exec/os.system in codebase                         │   │
-│  │  • SSL verification never disabled                            │   │
-│  │  • Image validated with Pillow.verify() before write          │   │
-│  │  • history.json capped at 1 MB (DoS protection)               │   │
-│  │  • .env never committed (.gitignore)                           │   │
-│  │  • No hardcoded secrets — all via environment variables       │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    THREAT MODEL                               │   │
-│  │                                                               │   │
-│  │  Threat              │ Mitigation                            │   │
-│  │  ────────────────────┼────────────────────────────────────── │   │
-│  │  SSRF via news URL   │ is_safe_url() scheme whitelist         │   │
-│  │  Path traversal      │ Filename sanitization + resolve check  │   │
-│  │  Log injection       │ Control char stripping                 │   │
-│  │  Disk DoS            │ 1 MB history cap + auto-cleanup        │   │
-│  │  Slow servers        │ Explicit timeouts on all connections   │   │
-│  │  Malicious images    │ Pillow.verify() before writing         │   │
-│  │  Credential theft    │ .env gitignored; no hardcoded keys     │   │
-│  └──────────────────────┴────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-### 7. Module Responsibilities
+### Module Responsibilities
 
 | Module | Responsibility | Key Functions |
 |---|---|---|
@@ -421,7 +99,18 @@ cartoon-generator/
 | `main.py` | Pipeline orchestration | `run_pipeline()` |
 | `run_service.py` | Continuous background execution | `main()`, `signal_handler()`, `run_pipeline()` |
 
-### 8. Dependencies
+### Data Model
+
+Each stage transforms the data into a new shape:
+
+| Stage | Key Fields |
+|---|---|
+| **Article** (from fetcher) | `title`, `url`, `description`, `source`, `fetched_at` |
+| **Comedy Analysis** (from analyzer) | `comedian_angle`, `cartoon_prompt`, `one_liner`, `used_fallback` |
+| **Cartoon Result** (from generator) | `filename`, `url`, `seed`, `generated_at`, `prompt` |
+| **History Entry** (in history.json) | `title`, `processed_at`, `cartoon_filename`, `article_url` |
+
+### Dependencies
 
 | Dependency | Purpose | Required? |
 |---|---|---|
@@ -431,6 +120,20 @@ cartoon-generator/
 | Standard library | XML parsing, logging, hashlib, etc. | **Required** |
 
 **Zero external dependencies required** — all three optional dependencies have built-in graceful degradation.
+
+### Security Controls
+
+| Control | Implementation |
+|---|---|
+| SSRF prevention | URL scheme whitelist (`http://`, `https://` only) via `is_safe_url()` |
+| Path traversal | Filename sanitization + resolved path verification stays inside `CARTOON_DIR` |
+| Log injection | Control character stripping on all external text |
+| Disk DoS | `history.json` capped at 1 MB with auto-cleanup of entries older than 60 days |
+| Hanging connections | All HTTP calls have explicit timeouts (30–60s) |
+| Malicious payloads | Pillow `Image.verify()` validates images before writing to disk |
+| Credential safety | `.env` gitignored; no hardcoded secrets |
+
+See [SECURITY.md](SECURITY.md) for the full threat model.
 
 ### Output Configuration
 
