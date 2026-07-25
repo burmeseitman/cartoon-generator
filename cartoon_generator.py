@@ -68,16 +68,23 @@ def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]
 
 
 def _enhance_prompt(prompt: str) -> str:
-    """Enhance the cartoon prompt for better image generation results."""
+    """Enhance the cartoon prompt for better image generation results.
+
+    Truncates to max 120 chars to avoid Pollinations.ai 500 errors on long prompts.
+    """
     enhancements = [
-        "funny cartoon illustration, vibrant colors, exaggerated expressions,",
-        "satirical editorial cartoon style, bold lines, humorous,",
+        "funny cartoon, vibrant colors, exaggerated expressions,",
+        "satirical cartoon style, bold lines, humorous,",
         "webcomic art style, colorful, witty visual humor,",
         "caricature illustration, comical proportions, funny,",
         "editorial cartoon, black and white with selective color, satirical,",
     ]
     enhancement = enhancements[random.randint(0, len(enhancements) - 1)]
-    return f"{enhancement} {prompt}"
+    full = f"{enhancement} {prompt}"
+    # Truncate to avoid 500 errors from Pollinations.ai
+    if len(full) > 120:
+        full = full[:117] + "..."
+    return full
 
 
 def _save_image(url: str, description: str, seed: int) -> Optional[str]:

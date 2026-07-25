@@ -94,13 +94,13 @@ def _extract_json(text: str) -> Optional[str]:
 def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
     """Generate a basic comedy analysis without AI (fallback).
 
-    Produces a detailed cartoon prompt with speech bubbles/dialog and a punchy one-liner.
+    Produces a short, effective cartoon prompt under 150 chars for Pollinations.ai compatibility.
     """
     # Extract key nouns/names from the title
     words = title.lower().replace("-", " ").split()
     key_words = [w.strip(".,;:!?'\"") for w in words if len(w) > 3]
-    # Pick up to 5 meaningful words
-    keywords = list(dict.fromkeys(key_words))[:5]
+    # Pick up to 4 meaningful words
+    keywords = list(dict.fromkeys(key_words))[:4]
     kw_text = " ".join(keywords) or "this news story"
 
     comedian_angle = (
@@ -108,15 +108,10 @@ def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
         f"Imagine the irony of {kw_text} happening in real life."
     )
 
+    # Short prompt — Pollinations.ai rejects very long prompts with 500 errors
     cartoon_prompt = (
-        f"A funny satirical editorial cartoon illustrating the absurdity of {kw_text}. "
-        f"Scene: exaggerated caricature-style characters reacting dramatically to the news. "
-        f"One character holds a newspaper with a comically large headline. "
-        f"Speech bubble on the left: 'You won't believe what just happened!' "
-        f"Speech bubble on the right: 'It's so ridiculous it must be true.' "
-        f"In the style of a humorous webcomic illustration with bold outlines, "
-        f"witty visual humor, and expressive faces. Colorful background with "
-        f"chaotic elements representing the news story."
+        f"Funny cartoon about {kw_text}, characters shocked and laughing, "
+        f"speech bubbles, bright colors, simple style."
     )
 
     one_liner = (
