@@ -191,7 +191,8 @@ def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed:
     except ImportError:
         logger.warning("Pillow not installed; saving raw image without validation.")
     except Exception as e:
-        logger.warning(f"Pillow validation failed ({e}); saving anyway.")
+        logger.warning(f"Pillow validation failed ({e}); rejecting image.")
+        return None
 
     filename = build_filename(description, ext=ext)
 

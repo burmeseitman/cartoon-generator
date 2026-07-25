@@ -48,7 +48,10 @@ pip audit
 - Filenames are truncated to 50 characters
 
 ### 5. Timeout Protection
-- All HTTP requests (`urlopen`, `requests.get`) have explicit timeouts (30–60s)
+- All HTTP requests (`urlopen`, `requests.get`) have explicit timeouts
+- RSS/NewsAPI calls: 30s timeout
+- Pollinations.ai image download: 60s timeout
+- Gemini API image generation: 90s timeout (slower due to image generation latency)
 - Prevents hanging connections and resource exhaustion
 
 ### 6. Image Validation
@@ -63,7 +66,7 @@ pip audit
 | Path traversal via crafted filename | Filename sanitization + resolved path verification |
 | Log injection via RSS content | Control character stripping |
 | Disk DoS via oversized history file | 1 MB size limit on `history.json` |
-| Hanging on slow/unresponsive servers | Explicit timeouts on all HTTP calls |
+| Hanging on slow/unresponsive servers | Explicit timeouts on all HTTP calls (30s–90s depending on endpoint) |
 | Malicious image payload | Pillow `verify()` before writing to disk |
 | Credential theft via `.env` file | `.gitignore` excludes `.env`; never committed |
 
