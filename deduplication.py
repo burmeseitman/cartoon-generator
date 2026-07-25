@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from config import HISTORY_FILE
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 MAX_HISTORY_SIZE = 1024 * 1024
 
 
-def load_history() -> List[Dict[str, Any]]:
+def load_history() -> list[dict[str, Any]]:
     """Load the history of previously processed articles.
 
     Security: limits file size to prevent DoS via oversized JSON files.
@@ -36,7 +36,7 @@ def load_history() -> List[Dict[str, Any]]:
         return []
 
 
-def save_history(history: List[Dict[str, Any]]):
+def save_history(history: list[dict[str, Any]]):
     """Save the updated history."""
     HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
@@ -75,6 +75,9 @@ def is_duplicate(title: str, window_days: int = 30) -> bool:
 
 def _titles_are_similar(title1: str, title2: str, threshold: float = 0.7) -> bool:
     """Check if two titles are similar enough to be duplicates."""
+    title1 = title1.lower()
+    title2 = title2.lower()
+
     if title1 == title2:
         return True
 

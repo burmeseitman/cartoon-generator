@@ -8,7 +8,7 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 import requests
-from typing import Any, Dict, List
+from typing import Any
 
 from config import (
     NEWS_SOURCES,
@@ -36,7 +36,7 @@ def _sanitize_text(text: str) -> str:
     return text.strip()
 
 
-def _fetch_rss_feed(url: str) -> List[Dict[str, Any]]:
+def _fetch_rss_feed(url: str) -> list[dict[str, Any]]:
     """Fetch articles from an RSS feed URL.
 
     Security: validates URL scheme, sets explicit timeout, sanitizes output.
@@ -81,7 +81,7 @@ def _fetch_rss_feed(url: str) -> List[Dict[str, Any]]:
     return articles
 
 
-def _fetch_newsapi(key: str) -> List[Dict[str, Any]]:
+def _fetch_newsapi(key: str) -> list[dict[str, Any]]:
     """Fetch articles from NewsAPI.org (requires API key)."""
     if not key:
         return []
@@ -123,7 +123,7 @@ def _fetch_newsapi(key: str) -> List[Dict[str, Any]]:
     return articles
 
 
-def fetch_trending_news() -> List[Dict[str, Any]]:
+def fetch_trending_news() -> list[dict[str, Any]]:
     """Fetch trending AI and cybersecurity news from all available sources.
 
     Returns a list of article dicts, deduplicated by title similarity.
@@ -156,7 +156,7 @@ def fetch_trending_news() -> List[Dict[str, Any]]:
     return unique[:MAX_ARTICLES]
 
 
-def _deduplicate_titles(articles: List[Dict[str, Any]], threshold: float = 0.8) -> List[Dict[str, Any]]:
+def _deduplicate_titles(articles: list[dict[str, Any]], threshold: float = 0.8) -> list[dict[str, Any]]:
     """Remove articles with highly similar titles."""
     unique = []
     for article in articles:
@@ -183,7 +183,7 @@ def _title_similarity(a: str, b: str) -> float:
     return len(intersection) / len(union)
 
 
-def save_fetched_news(articles: List[Dict[str, Any]]):
+def save_fetched_news(articles: list[dict[str, Any]]):
     """Save fetched news to a JSON file for debugging."""
     path = OUTPUT_DIR / "fetched_news.json"
     with open(path, "w", encoding="utf-8") as f:

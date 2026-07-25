@@ -6,20 +6,26 @@ Image generation pipeline:
 """
 import hashlib
 import logging
-import random
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from config import CARTOON_DIR, GEMINI_API_KEY, POLLINATIONS_BASE_URL, build_filename
+from config import (
+    CARTOON_DIR,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GEMINI_IMAGE_SIZE,
+    POLLINATIONS_BASE_URL,
+    build_filename,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def generate_cartoon(comedy_analysis: dict[str, Any]) -> dict[str, Any] | None:
     """Generate a funny cartoon image from the comedy analysis.
 
     Tries Gemini API first (higher quality). Falls back to Pollinations.ai if
@@ -97,31 +103,36 @@ def _base_result(url: str, seed: int, prompt: str, one_liner: str,
     }
 
 
-def _generate_with_gemini(prompt: str, title: str, seed: int) -> Optional[Dict[str, Any]]:
+def _generate_with_gemini(prompt: str, title: str, seed: int) -> dict[str, Any] | None:
     """Generate cartoon using Google Gemini Flash image generation API.
 
-    Uses the Gemini REST API to create images from text prompts.
+    Uses the native Gemini generateContent endpoint with responseModalities=["IMAGE"].
     Returns result dict with filename, or None on failure.
     """
     import json
+    import base64
 
     url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
     )
 
     payload = {
         "contents": [{
-            "parts": [
-                {"text": prompt}
-            ]
+            "parts": [{"text": prompt}]
         }],
         "generationConfig": {
-            "responseModalities": ["IMAGE", "TEXT"],
+            "responseModalities": ["IMAGE"],
+            "imageConfig": {
+                "aspectRatio": "1:1",
+                "imageSize": GEMINI_IMAGE_SIZE,
+            },
         },
     }
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+    }
 
     try:
         req = Request(
@@ -134,18 +145,25 @@ def _generate_with_gemini(prompt: str, title: str, seed: int) -> Optional[Dict[s
             raw = response.read().decode("utf-8")
             data = json.loads(raw)
 
-        # Extract inline data (base64 image) from response
-        parts = data.get("candidates", [{}]).get("content", {}).get("parts", [])
+        # Extract inlineData (base64 image) from response
+        candidates = data.get("candidates", [])
+        if not candidates:
+            logger.warning("Gemini returned no candidates.")
+            return None
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+
         for part in parts:
-            if "inline_data" in part:
-                mime_type = part["inline_data"].get("mime_type", "image/png")
-                b64_data = part["inline_data"].get("data", "")
+            inline = part.get("inlineData", {})
+            if inline:
+                mime_type = inline.get("mimeType", "image/png")
+                b64_data = inline.get("data", "")
                 if b64_data:
-                    import base64
                     image_bytes = base64.b64decode(b64_data)
                     return _save_image_bytes(image_bytes, mime_type, title, seed)
 
-        logger.warning("Gemini response contained no image data.")
+        logger.warning("Gemini response contained no inlineData.")
         return None
 
     except Exception as e:
@@ -153,7 +171,7 @@ def _generate_with_gemini(prompt: str, title: str, seed: int) -> Optional[Dict[s
         return None
 
 
-def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed: int) -> Optional[Dict[str, Any]]:
+def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed: int) -> dict[str, Any] | None:
     """Save image bytes directly (from Gemini base64 decode) to disk.
 
     Security: validates MIME type, prevents path traversal, restricts output to CARTOON_DIR.
@@ -212,23 +230,32 @@ def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed:
 def _enhance_prompt(prompt: str) -> str:
     """Enhance the cartoon prompt for better image generation results.
 
-    Truncates to max 120 chars to avoid API errors on long prompts.
+    Prepends a full visual style block from the style guide (characters, setting,
+    color palette). The incoming prompt should describe only the scene/narrative.
+    Truncates to 1000 chars to avoid API errors.
     """
-    enhancements = [
-        "funny cartoon, vibrant colors, exaggerated expressions,",
-        "satirical cartoon style, bold lines, humorous,",
-        "webcomic art style, colorful, witty visual humor,",
-        "caricature illustration, comical proportions, funny,",
-        "editorial cartoon, black and white with selective color, satirical,",
-    ]
-    enhancement = enhancements[random.randint(0, len(enhancements) - 1)]
-    full = f"{enhancement} {prompt}"
-    if len(full) > 120:
-        full = full[:117] + "..."
+    style_prefix = (
+        "Warm family comic illustration in a cozy living room. "
+        "Recurring characters: Father (black hair in topknot, white shirt, green plaid wrap pants, "
+        "sitting on wooden chair); Mother (black hair with yellow flower, pink top, purple patterned skirt, "
+        "sitting on floor cushion); Son (short black hair, bright yellow shirt, purple pants, "
+        "sitting cross-legged); Robot/AI helper (white dome head, blue glowing LED eyes, "
+        "friendly smile, tech logo on chest, sitting at table with laptop); "
+        "Sleeping orange tabby cat on floor. "
+        "Warm beige walls (#f5e6c8), wooden coffee table with teacups and cookies, "
+        "potted plant, calendar on wall. "
+        "Soft watercolor-like coloring, gentle gradients, no harsh outlines. "
+        "Yellow title banner at top with bold black Burmese text. "
+        "Speech bubbles: white rounded ovals with thin black outlines, Burmese text inside. "
+        "Humorous but wholesome tone, everyone smiling. "
+    )
+    full = f"{style_prefix}{prompt}"
+    if len(full) > 1000:
+        full = full[:997] + "..."
     return full
 
 
-def _save_image(url: str, description: str, seed: int) -> Optional[str]:
+def _save_image(url: str, description: str, seed: int) -> str | None:
     """Download and save an image from a URL.
 
     Used by Pollinations.ai fallback path.
@@ -283,7 +310,7 @@ def _save_image(url: str, description: str, seed: int) -> Optional[str]:
         return None
 
 
-def _save_without_validation(url: str, description: str, seed: int) -> Optional[str]:
+def _save_without_validation(url: str, description: str, seed: int) -> str | None:
     """Fallback image saving without Pillow validation."""
     if not url.startswith("https://"):
         logger.warning(f"Rejected unsafe image URL scheme: {url}")

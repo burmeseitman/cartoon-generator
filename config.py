@@ -1,11 +1,29 @@
 """Configuration and constants for the Cartoon Generator."""
+import logging
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
-
 # Base directories
 BASE_DIR = Path(__file__).parent.resolve()
+
+# Load .env file if it exists (simple parser, no python-dotenv dependency)
+_ENV_PATH = BASE_DIR / ".env"
+if _ENV_PATH.exists():
+    with open(_ENV_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip()
+            # Strip inline comments (e.g., "value  # comment")
+            if "#" in value:
+                value = value[:value.index("#")]
+            value = value.strip().strip("\"'")
+            os.environ.setdefault(key, value)
 
 # Configurable output directory (env: CARTOON_OUTPUT_DIR)
 OUTPUT_DIR = Path(os.getenv("CARTOON_OUTPUT_DIR", str(BASE_DIR / "output")))
@@ -46,8 +64,8 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 # Gemini API for image generation (primary, needs API key)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
-GEMINI_IMAGE_SIZE = os.getenv("GEMINI_IMAGE_SIZE", "1024x1024")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-image-preview")
+GEMINI_IMAGE_SIZE = os.getenv("GEMINI_IMAGE_SIZE", "1K")
 
 # Pollinations.ai (fallback, free, no API key needed)
 POLLINATIONS_BASE_URL = "https://image.pollinations.ai"
@@ -59,6 +77,18 @@ DEDUP_WINDOW_DAYS = 30
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "cartoon.log"
+
+
+def setup_logging():
+    """Configure logging to file and console."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_FILE, encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
 
 
 def sanitize_filename(text: str, max_length: int = 40) -> str:

@@ -1,40 +1,51 @@
 """Analyzes news articles from a comedian's viewpoint."""
 import json
 import logging
-import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 from config import OPENAI_API_KEY, OPENAI_MODEL
 
 logger = logging.getLogger(__name__)
 
-COMEDY_ANALYSIS_PROMPT = """\
+COMEDY_ANALYSIS_PROMPT = f"""\
 You are a stand-up comedian analyzing a news article for a funny cartoon.
 
 Given the following news article, provide:
 1. A COMEDIAN_ANGLE: One or two sentences capturing the humorous angle of this story
-2. A CARTOON_PROMPT: A detailed English prompt for generating a funny cartoon/illustration 
-   image. The prompt should describe a visual scene that satirizes or makes fun of the news.
-   Include style direction (e.g., "in the style of a satirical editorial cartoon", 
-   "funny webcomic style", "caricature illustration").
+2. A CARTOON_PROMPT: Describe ONLY the scene actions, character reactions, dialogue in
+   speech bubbles, and what each character is doing in relation to the news topic.
+   Reference the recurring characters by role (father, mother, son, robot/AI helper,
+   orange cat). DO NOT describe visual art style, colors, or layout — visual style
+   is added automatically. Focus on: who is reacting how, what the speech bubbles say,
+   and the humorous situation.
 3. A ONE_LINER: A short punchy one-liner joke about this news (max 20 words)
 
 Rules:
 - Keep it light-hearted and witty, not offensive
-- Focus on the absurdity or irony in the news
-- The cartoon prompt must be visually descriptive enough to generate an image
-- Do NOT include any real person's name in the cartoon prompt; use generic descriptors instead
+- The humor comes from the scene and dialogue, not the art style
+- Do NOT include any real person's name; use generic descriptors instead
+- Fit the news topic into the cozy family living room setting
+- ALL speech bubble dialogue MUST be written in Burmese language (Myanmar script)
+- The title banner text should also be in Burmese
+- The ONE_LINER should be in Burmese too
+
+Reference characters available (for scene actions only):
+- Father: black hair in topknot, white shirt, green plaid wrap pants
+- Mother: black hair with flower, pink top, purple patterned skirt
+- Son: short black hair, bright yellow shirt, purple pants
+- Robot/AI: white dome head, blue glowing LED eyes, tech logo on chest
+- Orange tabby cat sleeping on floor
 
 Format your response as JSON with keys: comedian_angle, cartoon_prompt, one_liner
 
 News Article:
-Title: {title}
-Description: {description}
-URL: {url}
+Title: {{title}}
+Description: {{description}}
+URL: {{url}}
 """
 
 
-def analyze_with_openai(title: str, description: str, url: str) -> Optional[Dict[str, Any]]:
+def analyze_with_openai(title: str, description: str, url: str) -> dict[str, Any] | None:
     """Use OpenAI to get a comedian's analysis of the news article.
 
     Returns a dict with comedian_angle, cartoon_prompt, one_liner.
@@ -73,7 +84,7 @@ def analyze_with_openai(title: str, description: str, url: str) -> Optional[Dict
     return None
 
 
-def _extract_json(text: str) -> Optional[str]:
+def _extract_json(text: str) -> str | None:
     """Try to extract a JSON object from text that may contain markdown or other content."""
     # Look for JSON between ```json ... ``` or just {...}
     import re
@@ -91,32 +102,31 @@ def _extract_json(text: str) -> Optional[str]:
     return None
 
 
-def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
+def fallback_comedy_analysis(title: str, description: str) -> dict[str, Any]:
     """Generate a basic comedy analysis without AI (fallback).
 
-    Produces a short, effective cartoon prompt under 150 chars for Pollinations.ai compatibility.
+    Produces a cartoon prompt referencing the family comic style guide.
     """
-    # Extract key nouns/names from the title
     words = title.lower().replace("-", " ").split()
     key_words = [w.strip(".,;:!?'\"") for w in words if len(w) > 3]
-    # Pick up to 4 meaningful words
     keywords = list(dict.fromkeys(key_words))[:4]
     kw_text = " ".join(keywords) or "this news story"
 
     comedian_angle = (
-        f"The absurdity of '{title}' is perfect for a satirical cartoon. "
-        f"Imagine the irony of {kw_text} happening in real life."
+        f"The irony of '{title}' is perfect for a warm family comic. "
+        f"Imagine a cozy living room where the family reacts to {kw_text}."
     )
 
-    # Short prompt — Pollinations.ai rejects very long prompts with 500 errors
     cartoon_prompt = (
-        f"Funny cartoon about {kw_text}, characters shocked and laughing, "
-        f"speech bubbles, bright colors, simple style."
+        f"The family in the living room reacts with surprise to news about {kw_text}. "
+        f"The robot shows data about it on the laptop. "
+        f"Speech bubbles contain humorous Burmese dialogue expressing shock and reactions. "
+        f"Title banner in Burmese text at top."
     )
 
     one_liner = (
-        f"'When {keywords[0] if len(keywords) > 0 else 'this'} happens, "
-        f"you know we're living in the future.'"
+        "ဒီခေတ်ကြီးမှာ ဘာမဆိုဖြစ်နိုင်တယ်နော်။ "
+        "(In this era, anything can happen, right?)"
     )
 
     return {
@@ -126,7 +136,7 @@ def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
     }
 
 
-def analyze_article(article: dict) -> Dict[str, Any]:
+def analyze_article(article: dict) -> dict[str, Any]:
     """Full analysis pipeline for one article.
 
     Tries OpenAI first, falls back to heuristic analysis.

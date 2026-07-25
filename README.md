@@ -1,20 +1,26 @@
 # Cartoon Generator
 
-A background job that fetches trending AI and cybersecurity news, analyzes them from a comedian's viewpoint, and generates funny cartoon images based on the news articles.
+A background job that fetches trending AI and cybersecurity news, analyzes them from a comedian's viewpoint, and generates funny cartoon images featuring family comic characters with Burmese dialogue.
 
 ## Features
 
 - Fetches trending AI and cybersecurity news from free APIs
 - Analyzes news articles from a comedian/comedy perspective
-- Generates funny cartoon images using free image generation APIs
+- Generates funny cartoon images using Gemini API (primary) with Pollinations.ai fallback
+- Consistent character designs via [Cartoon Style Guide](CARTOON_STYLE_GUIDE.md) — father, mother, son, robot/AI helper, and orange tabby cat
+- Burmese language speech bubbles and title banners
+- Warm family comic art style with soft watercolor coloring
 - Deduplication check to avoid generating duplicate cartoons from the past 30 days
 - Runs as a background job with no frontend
 - Saves output to an `output/` folder
+- 28 unit tests for core modules
 
 ## Requirements
 
-- Python 3.9+
-- Free API keys (see below)
+- Python 3.10+ (uses `str \| None` and `list[dict]` type hints)
+- Gemini API key (primary image generation)
+- Optional: OpenAI API key (better comedy analysis; built-in fallback works without it)
+- Optional: NewsAPI key (RSS feeds work without it)
 
 ## Setup
 
@@ -31,9 +37,14 @@ cp .env.example .env
 
 3. Set environment variables (or create a `.env` file):
 ```bash
-# Optional API keys (fallbacks are built-in if these are empty)
+# Gemini API (primary image generation — highly recommended)
+export GEMINI_API_KEY=your_gemini_key           # https://aistudio.google.com
+
+# Optional: OpenAI (better comedy analysis)
+export OPENAI_API_KEY=your_openai_key           # https://platform.openai.com
+
+# Optional: NewsAPI (additional news source)
 export NEWS_API_KEY=your_newsapi_key            # https://newsapi.org
-export OPENAI_API_KEY=your_openai_key           # https://platform.openai.com (comedy analysis)
 
 # Output Configuration
 export CARTOON_OUTPUT_DIR=./output              # Where generated images are saved
@@ -49,18 +60,23 @@ python main.py
 
 ```
 cartoon-generator/
-├── main.py              # Entry point - orchestrates the pipeline
-├── news_fetcher.py      # Fetches trending AI/cybersecurity news
-├── comedian_analyzer.py # Analyzes news from comedian viewpoint
-├── cartoon_generator.py # Generates funny cartoon images
-├── deduplication.py     # Checks for duplicates in past 30 days
-├── config.py            # Configuration and constants
-├── requirements.txt     # Python dependencies
-├── README.md            # This file
-├── LICENSE              # MIT License
-└── output/              # Generated cartoons and logs
-    ├── cartoons/        # Generated cartoon images
-    └── history.json     # History of generated items for deduplication
+├── main.py                 # Entry point — orchestrates the pipeline
+├── news_fetcher.py         # Fetches trending AI/cybersecurity news
+├── comedian_analyzer.py    # Analyzes news from comedian viewpoint
+├── cartoon_generator.py    # Generates funny cartoon images
+├── deduplication.py        # Checks for duplicates in past 30 days
+├── config.py               # Configuration and constants
+├── run_service.py          # Continuous background execution
+├── CARTOON_STYLE_GUIDE.md  # Visual style guide for consistent character designs
+├── requirements.txt        # Python dependencies
+├── tests/
+│   ├── test_config.py      # Config module tests (15 tests)
+│   └── test_deduplication.py  # Deduplication module tests (13 tests)
+├── README.md               # This file
+├── LICENSE                 # MIT License
+└── output/                 # Generated cartoons and logs
+    ├── cartoons/           # Generated cartoon images
+    └── history.json        # History of generated items for deduplication
 ```
 
 ## Architecture
@@ -73,8 +89,8 @@ The system consists of **four core modules** orchestrated by `main.py`:
 News Fetcher → Comedian Analyzer → Cartoon Generator → Output Folder
      │               │                    │
      ▼               ▼                    ▼
-Google News RSS   OpenAI / Fallback    Pollinations.ai
-NewsAPI (opt.)    Heuristic            Free image gen
+Google News RSS   OpenAI / Fallback    Gemini API (primary)
+NewsAPI (opt.)    Heuristic            Pollinations.ai (fallback)
 ```
 
 A **deduplication gate** sits between fetching and analysis, checking `history.json` against a 30-day window to prevent re-processing the same story.
@@ -83,43 +99,58 @@ A **deduplication gate** sits between fetching and analysis, checking `history.j
 
 1. **Fetch** — Queries Google News RSS (free) and optional NewsAPI for trending AI & cybersecurity articles
 2. **Deduplicate** — Compares titles using Jaccard similarity; skips articles processed within the past 30 days
-3. **Analyze** — Uses OpenAI GPT (or built-in heuristic fallback) to generate a comedic angle, cartoon image prompt, and one-liner joke
-4. **Generate** — Sends the enhanced prompt to Pollinations.ai (free, no key), validates the image with Pillow, saves it with a configurable filename format
-5. **Record** — Adds the article to `history.json` so it won't be reprocessed
+3. **Analyze** — Uses OpenAI GPT (or built-in heuristic fallback) to generate a comedic angle, scene description, and one-liner joke. The [style guide](CARTOON_STYLE_GUIDE.md) is injected into the AI prompt for consistent character references
+4. **Enhance** — Visual style block (character designs, color palette, layout) is prepended to the scene description by `_enhance_prompt()`
+5. **Generate** — Sends the combined prompt to Gemini API (primary) with Pollinations.ai fallback, validates the image with Pillow, saves it with a configurable filename format
+6. **Record** — Adds the article to `history.json` so it won't be reprocessed
+
+### Cartoon Style
+
+The generator uses a consistent warm family comic style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_STYLE_GUIDE.md):
+
+| Element | Description |
+|---|---|
+| **Characters** | Father (topknot, white shirt, green plaid), Mother (flower, pink top, purple skirt), Son (yellow shirt, purple pants), Robot/AI (dome head, blue LED eyes), orange tabby cat |
+| **Setting** | Cozy living room with warm beige walls, wooden furniture, potted plant, calendar |
+| **Art style** | Soft watercolor, gentle gradients, no harsh outlines, cute rounded designs |
+| **Speech bubbles** | White rounded ovals with thin black outlines — **Burmese text** |
+| **Title banner** | Yellow banner at top with bold black **Burmese text** |
+| **Tone** | Humorous but wholesome, family bonding, light satire on tech news |
 
 ### Module Responsibilities
 
 | Module | Responsibility | Key Functions |
-|---|---|---|
-| `config.py` | Constants, env vars, filename builder | `build_filename()`, `sanitize_filename()`, `is_safe_url()` |
+|---|---|---|---|
+| `config.py` | Constants, env vars, filename builder, logging setup | `build_filename()`, `sanitize_filename()`, `is_safe_url()`, `setup_logging()` |
 | `news_fetcher.py` | Fetch & parse news from external APIs | `fetch_trending_news()`, `_fetch_rss_feed()`, `_sanitize_text()` |
-| `comedian_analyzer.py` | Generate comedy angles & image prompts | `analyze_article()`, `analyze_with_openai()`, `fallback_comedy_analysis()` |
-| `cartoon_generator.py` | Generate & save cartoon images | `generate_cartoon()`, `_save_image()`, `_enhance_prompt()` |
+| `comedian_analyzer.py` | Generate comedy angles & scene descriptions | `analyze_article()`, `analyze_with_openai()`, `fallback_comedy_analysis()` |
+| `cartoon_generator.py` | Generate & save cartoon images | `generate_cartoon()`, `_save_image()`, `_enhance_prompt()`, `_generate_with_gemini()` |
 | `deduplication.py` | Track processed items, prevent repeats | `is_duplicate()`, `add_to_history()`, `cleanup_old_history()` |
-| `main.py` | Pipeline orchestration | `run_pipeline()` |
-| `run_service.py` | Continuous background execution | `main()`, `signal_handler()`, `run_pipeline()` |
+| `main.py` | Pipeline orchestration | `run_pipeline(max_articles=1)` |
+| `run_service.py` | Continuous background execution | `main()`, reuses `main.run_pipeline(max_articles=None)` |
 
 ### Data Model
 
 Each stage transforms the data into a new shape:
 
 | Stage | Key Fields |
-|---|---|
+|---|---|---|
 | **Article** (from fetcher) | `title`, `url`, `description`, `source`, `fetched_at` |
-| **Comedy Analysis** (from analyzer) | `comedian_angle`, `cartoon_prompt`, `one_liner`, `used_fallback` |
-| **Cartoon Result** (from generator) | `filename`, `url`, `seed`, `generated_at`, `prompt` |
+| **Comedy Analysis** (from analyzer) | `comedian_angle`, `cartoon_prompt` (scene only), `one_liner` (Burmese), `used_fallback` |
+| **Enhanced Prompt** (from generator) | Visual style block + scene description (up to 1000 chars) |
+| **Cartoon Result** (from generator) | `filename`, `url`, `seed`, `generated_at`, `prompt`, `source` |
 | **History Entry** (in history.json) | `title`, `processed_at`, `cartoon_filename`, `article_url` |
 
 ### Dependencies
 
 | Dependency | Purpose | Required? |
-|---|---|---|
+|---|---|---|---|
 | `requests>=2.32.3` | HTTP calls for NewsAPI | Optional (RSS works without it) |
-| `Pillow>=10.0.0` | Image validation before saving | Optional (fallback saves without it) |
-| `openai` | LLM-powered comedy analysis | Optional (built-in heuristic fallback) |
+| `Pillow>=10.0.0` | Image validation before saving | Optional (saves without validation) |
+| `openai>=1.0.0` | LLM-powered comedy analysis | Optional (built-in heuristic fallback) |
 | Standard library | XML parsing, logging, hashlib, etc. | **Required** |
 
-**Zero external dependencies required** — all three optional dependencies have built-in graceful degradation.
+**Zero external dependencies required** — all dependencies have built-in graceful degradation. The system works with just a Gemini API key.
 
 ### Security Controls
 
@@ -168,6 +199,13 @@ openai-gpt5-release-20260725.jpg
 
 Collision handling: if a file with the same name already exists, a numeric suffix is appended (e.g., `claude-ai-20260725_233400_1.jpg`).
 
+## Running Tests
+
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
 ## Running as a Background Job
 
 Use cron or systemd to run periodically:
@@ -180,7 +218,8 @@ Use cron or systemd to run periodically:
 
 Or use the included `run_service.py` for continuous background operation:
 ```bash
-python run_service.py
+python run_service.py              # Single pass
+python run_service.py --continuous 6  # Every 6 hours
 ```
 
 ## License
