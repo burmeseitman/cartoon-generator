@@ -232,7 +232,7 @@ def _enhance_prompt(prompt: str) -> str:
     """Enhance the cartoon prompt for better image generation results.
 
     Prepends a visual style block from the style guide (art style, colors, layout).
-    The incoming prompt describes the scene/narrative. Truncates to 1000 chars.
+    The incoming prompt describes the scene/narrative. Truncates to 2000 chars.
     """
     style_prefix = (
         "Warm cartoon illustration, soft watercolor-like coloring, gentle gradients, "
@@ -246,8 +246,8 @@ def _enhance_prompt(prompt: str) -> str:
         "Artist signature in bottom-right corner. "
     )
     full = f"{style_prefix}{prompt}"
-    if len(full) > 1000:
-        full = full[:997] + "..."
+    if len(full) > 2000:
+        full = full[:1997] + "..."
     return full
 
 
