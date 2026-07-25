@@ -45,7 +45,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 # Image generation - Pollinations.ai (free, no API key needed)
-POLLINATIONS_BASE_URL = "https://image.pollinations.ai/prompt/{prompt}?width=1024&height=1024&nologo=true&seed={seed}"
+# Pollinations.ai image generation endpoint
+# Note: prompt must be URL-encoded (quote(prompt, safe="")) before use
+POLLINATIONS_API = "https://image.pollinations.ai"
 
 # Deduplication settings
 DEDUP_WINDOW_DAYS = 30

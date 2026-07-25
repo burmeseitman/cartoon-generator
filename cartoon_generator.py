@@ -5,10 +5,11 @@ import random
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from config import CARTOON_DIR, POLLINATIONS_BASE_URL, build_filename
+from config import CARTOON_DIR, build_filename
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,8 @@ def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]
     # Try multiple seeds if the first doesn't produce a good result
     for attempt in range(3):
         current_seed = seed + attempt * 1000
-        url = POLLINATIONS_BASE_URL.format(prompt=enhanced_prompt, seed=current_seed)
+        encoded_prompt = quote(enhanced_prompt, safe="")
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={current_seed}"
 
         try:
             filename = _save_image(url, description_for_filename, current_seed)

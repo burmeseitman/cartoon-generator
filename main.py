@@ -1,7 +1,7 @@
 """Main entry point for the Cartoon Generator.
 
 Usage:
-    python main.py              # Run once
+    python main.py              # Run once — fetches news, picks one, generates one cartoon
     python run_service.py       # Run continuously as background service
     python run_service.py --continuous 6  # Every 6 hours
 """
@@ -28,7 +28,7 @@ def setup_logging():
 
 
 def run_pipeline():
-    """Execute one full pipeline cycle."""
+    """Execute one pipeline cycle: fetch news, pick one article, generate ONE cartoon."""
     logger = logging.getLogger(__name__)
     logger.info("=" * 60)
     logger.info("Cartoon Generator Pipeline Started")
@@ -46,49 +46,56 @@ def run_pipeline():
     save_fetched_news(articles)
     logger.info(f"Fetched {len(articles)} articles.\n")
 
-    generated_count = 0
-
-    for i, article in enumerate(articles, 1):
+    # Step 2: Pick the FIRST non-duplicate article
+    selected = None
+    skipped = 0
+    for article in articles:
         title = article.get("title", "Untitled")
-        logger.info(f"[{i}/{len(articles)}] Processing: {title[:80]}...")
-
-        # Step 2: Deduplication check
         if is_duplicate(title):
-            logger.info(f"  -> Skipped (duplicate within 30 days)\n")
+            skipped += 1
             continue
+        selected = article
+        break
 
-        # Step 3: Comedian analysis
-        try:
-            analysis = analyze_article(article)
-            if not analysis:
-                logger.warning(f"  -> No comedy analysis available\n")
-                continue
-        except Exception as e:
-            logger.error(f"  -> Analysis failed: {e}\n")
-            continue
+    if not selected:
+        logger.warning("All fetched articles are duplicates. Nothing to process.")
+        return
 
-        # Step 4: Generate cartoon
-        try:
-            result = generate_cartoon(analysis)
-            if result:
-                generated_count += 1
-                add_to_history({
-                    "title": title,
-                    "processed_at": result["generated_at"],
-                    "cartoon_filename": result["filename"],
-                    "one_liner": result.get("one_liner", ""),
-                    "article_url": result.get("article_url", ""),
-                })
-                logger.info(f"  -> Generated: {result['filename']}")
-                if result.get("one_liner"):
-                    logger.info(f"  -> One-liner: \"{result['one_liner']}\"")
-            else:
-                logger.warning("  -> Image generation failed\n")
-        except Exception as e:
-            logger.error(f"  -> Error: {e}\n")
+    title = selected.get("title", "Untitled")
+    logger.info(f"Selected article: {title[:100]}...\n")
+
+    # Step 3: Comedian analysis
+    try:
+        analysis = analyze_article(selected)
+        if not analysis:
+            logger.error("No comedy analysis available.")
+            return
+    except Exception as e:
+        logger.error(f"Analysis failed: {e}")
+        return
+
+    # Step 4: Generate ONE cartoon
+    try:
+        result = generate_cartoon(analysis)
+        if result:
+            add_to_history({
+                "title": title,
+                "processed_at": result["generated_at"],
+                "cartoon_filename": result["filename"],
+                "one_liner": result.get("one_liner", ""),
+                "article_url": result.get("article_url", ""),
+            })
+            logger.info(f"\nGenerated cartoon: {result['filename']}")
+            if result.get("one_liner"):
+                logger.info(f"One-liner: \"{result['one_liner']}\"")
+            logger.info(f"Saved to: output/cartoons/{result['filename']}")
+        else:
+            logger.error("Image generation failed after all retries.")
+    except Exception as e:
+        logger.error(f"Generation error: {e}")
 
     logger.info("\n" + "=" * 60)
-    logger.info(f"Pipeline Complete. Generated {generated_count} cartoons.")
+    logger.info("Pipeline Complete. 1 cartoon generated (or attempted).")
     logger.info("=" * 60)
 
 

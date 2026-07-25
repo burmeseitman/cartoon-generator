@@ -92,19 +92,37 @@ def _extract_json(text: str) -> Optional[str]:
 
 
 def fallback_comedy_analysis(title: str, description: str) -> Dict[str, Any]:
-    """Generate a basic comedy analysis without AI (fallback)."""
-    # Simple heuristic: extract key topics and create a template
-    words = title.lower().split()
-    key_topics = [w for w in words if len(w) > 4]
+    """Generate a basic comedy analysis without AI (fallback).
 
-    cartoon_prompt = (
-        f"A funny satirical editorial cartoon about {' '.join(key_topics[:3])}. "
-        f"In the style of a humorous webcomic illustration. "
-        f"Show the absurdity of the situation with exaggerated characters and witty visuals."
+    Produces a detailed cartoon prompt with speech bubbles/dialog and a punchy one-liner.
+    """
+    # Extract key nouns/names from the title
+    words = title.lower().replace("-", " ").split()
+    key_words = [w.strip(".,;:!?'\"") for w in words if len(w) > 3]
+    # Pick up to 5 meaningful words
+    keywords = list(dict.fromkeys(key_words))[:5]
+    kw_text = " ".join(keywords) or "this news story"
+
+    comedian_angle = (
+        f"The absurdity of '{title}' is perfect for a satirical cartoon. "
+        f"Imagine the irony of {kw_text} happening in real life."
     )
 
-    comedian_angle = f"The irony of {' '.join(key_topics[:3])} is ripe for comedy."
-    one_liner = f"When {' '.join(key_topics[:2])} happens, you know the future is now."
+    cartoon_prompt = (
+        f"A funny satirical editorial cartoon illustrating the absurdity of {kw_text}. "
+        f"Scene: exaggerated caricature-style characters reacting dramatically to the news. "
+        f"One character holds a newspaper with a comically large headline. "
+        f"Speech bubble on the left: 'You won't believe what just happened!' "
+        f"Speech bubble on the right: 'It's so ridiculous it must be true.' "
+        f"In the style of a humorous webcomic illustration with bold outlines, "
+        f"witty visual humor, and expressive faces. Colorful background with "
+        f"chaotic elements representing the news story."
+    )
+
+    one_liner = (
+        f"'When {keywords[0] if len(keywords) > 0 else 'this'} happens, "
+        f"you know we're living in the future.'"
+    )
 
     return {
         "comedian_angle": comedian_angle,
