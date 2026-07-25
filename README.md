@@ -106,16 +106,17 @@ A **deduplication gate** sits between fetching and analysis, checking `history.j
 
 ### Cartoon Style
 
-The generator uses a consistent warm family comic style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_STYLE_GUIDE.md):
+The generator uses a flexible style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_STYLE_GUIDE.md). The environment and characters adapt to the news topic, while the core art style stays consistent:
 
 | Element | Description |
 |---|---|
-| **Characters** | Father (topknot, white shirt, green plaid), Mother (flower, pink top, purple skirt), Son (yellow shirt, purple pants), Robot/AI (dome head, blue LED eyes), orange tabby cat |
-| **Setting** | Cozy living room with warm beige walls, wooden furniture, potted plant, calendar |
+| **Environment** | Adapts to the news — office, hospital, classroom, server room, living room, etc. |
+| **Characters** | 2-5 Burmese characters fitting the news context (workers, doctors, students, etc.) + optional robot/AI for tech news |
+| **Animal** | One "don't care" animal (cat, dog, bird) with deadpan expression or lazy posture — comedic contrast |
 | **Art style** | Soft watercolor, gentle gradients, no harsh outlines, cute rounded designs |
 | **Speech bubbles** | White rounded ovals with thin black outlines — **Burmese text** |
 | **Title banner** | Yellow banner at top with bold black **Burmese text** |
-| **Tone** | Humorous but wholesome, family bonding, light satire on tech news |
+| **Tone** | Humorous but wholesome, light satire, dramatic reactions + unbothered animal |
 
 ### Module Responsibilities
 

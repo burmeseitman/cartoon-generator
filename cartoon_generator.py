@@ -231,24 +231,19 @@ def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed:
 def _enhance_prompt(prompt: str) -> str:
     """Enhance the cartoon prompt for better image generation results.
 
-    Prepends a full visual style block from the style guide (characters, setting,
-    color palette). The incoming prompt should describe only the scene/narrative.
-    Truncates to 1000 chars to avoid API errors.
+    Prepends a visual style block from the style guide (art style, colors, layout).
+    The incoming prompt describes the scene/narrative. Truncates to 1000 chars.
     """
     style_prefix = (
-        "Warm family comic illustration in a cozy living room. "
-        "Recurring characters: Father (black hair in topknot, white shirt, green plaid wrap pants, "
-        "sitting on wooden chair); Mother (black hair with yellow flower, pink top, purple patterned skirt, "
-        "sitting on floor cushion); Son (short black hair, bright yellow shirt, purple pants, "
-        "sitting cross-legged); Robot/AI helper (white dome head, blue glowing LED eyes, "
-        "friendly smile, tech logo on chest, sitting at table with laptop); "
-        "Sleeping orange tabby cat on floor. "
-        "Warm beige walls (#f5e6c8), wooden coffee table with teacups and cookies, "
-        "potted plant, calendar on wall. "
-        "Soft watercolor-like coloring, gentle gradients, no harsh outlines. "
+        "Warm cartoon illustration, soft watercolor-like coloring, gentle gradients, "
+        "no harsh black outlines. Cute rounded character designs with big expressive eyes. "
+        "Burmese people with warm light-brown/peach skin, colorful casual or work clothing. "
         "Yellow title banner at top with bold black Burmese text. "
         "Speech bubbles: white rounded ovals with thin black outlines, Burmese text inside. "
-        "Humorous but wholesome tone, everyone smiling. "
+        "One animal in the scene with a completely unbothered 'don't care' expression or lazy posture. "
+        "Warm beige/cream background tones (#f5e6c8), soft pastel colors throughout. "
+        "Simple background with 3-5 setting-appropriate props. "
+        "Artist signature in bottom-right corner. "
     )
     full = f"{style_prefix}{prompt}"
     if len(full) > 1000:

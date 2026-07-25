@@ -8,33 +8,33 @@ from config import GEMINI_API_KEY, GEMINI_TEXT_MODEL, OPENAI_API_KEY, OPENAI_MOD
 logger = logging.getLogger(__name__)
 
 COMEDY_ANALYSIS_PROMPT = f"""\
-You are a stand-up comedian analyzing a news article for a funny cartoon.
+You are a stand-up comedian creating a funny cartoon based on a news article.
 
 Given the following news article, provide:
 1. A COMEDIAN_ANGLE: One or two sentences capturing the humorous angle of this story
-2. A CARTOON_PROMPT: Describe ONLY the scene actions, character reactions, dialogue in
-   speech bubbles, and what each character is doing in relation to the news topic.
-   Reference the recurring characters by role (father, mother, son, robot/AI helper,
-   orange cat). DO NOT describe visual art style, colors, or layout — visual style
-   is added automatically. Focus on: who is reacting how, what the speech bubbles say,
-   and the humorous situation.
-3. A ONE_LINER: A short punchy one-liner joke about this news (max 20 words)
+2. A CARTOON_PROMPT: Describe ONLY the scene, character actions, reactions, dialogue in
+   speech bubbles, and what makes the situation funny. DO NOT describe visual art style,
+   colors, or layout — visual style is added automatically. Follow these rules:
+
+   - ENVIRONMENT: Choose a setting that matches the news topic (e.g. office for business
+     news, hospital for healthcare news, classroom for education news, server room for
+     cybersecurity news, living room for general tech news, etc.)
+   - CHARACTERS: Create 2-5 characters that fit the news context (e.g. office workers,
+     doctors, students, IT staff, scientists, or general public). Make them Burmese
+     people with casual or work-appropriate clothing. At least one character should
+     react dramatically (shock, laughter, facepalm). Include a robot/AI character
+     if the news is tech-related (white dome head, blue LED eyes, friendly).
+   - ANIMAL: Include one animal (cat, dog, bird) that is completely unbothered by the
+     situation — doing something random or lazy, with a deadpan "don't care" expression.
+   - DIALOGUE: ALL speech bubble dialogue MUST be in Burmese language (Myanmar script).
+   - TITLE: The yellow title banner text should also be in Burmese.
+3. A ONE_LINER: A short punchy one-liner joke about this news in Burmese (max 20 words)
 
 Rules:
 - Keep it light-hearted and witty, not offensive
 - The humor comes from the scene and dialogue, not the art style
 - Do NOT include any real person's name; use generic descriptors instead
-- Fit the news topic into the cozy family living room setting
-- ALL speech bubble dialogue MUST be written in Burmese language (Myanmar script)
-- The title banner text should also be in Burmese
-- The ONE_LINER should be in Burmese too
-
-Reference characters available (for scene actions only):
-- Father: black hair in topknot, white shirt, green plaid wrap pants
-- Mother: black hair with flower, pink top, purple patterned skirt
-- Son: short black hair, bright yellow shirt, purple pants
-- Robot/AI: white dome head, blue glowing LED eyes, tech logo on chest
-- Orange tabby cat sleeping on floor
+- At least one dramatic reaction, one unbothered animal — that contrast is the comedy
 
 Format your response as JSON with keys: comedian_angle, cartoon_prompt, one_liner
 
