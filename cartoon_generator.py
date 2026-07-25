@@ -238,7 +238,7 @@ def _enhance_prompt(prompt: str) -> str:
         "Hand-drawn Burmese cartoon illustration, bold black ink outlines, "
         "watercolor wash coloring, organic hand-painted feel. "
         "Expressive character designs with big eyes and dramatic eyebrows. "
-        "Burmese people with warm light-brown/peach skin, thanaka on cheeks, "
+        "Burmese people with warm light-brown/peach skin, girls/ladies sometimes with thanaka on cheeks, "
         "longyi and casual clothing. "
         "Yellow title banner at top with bold black Burmese text. "
         "Speech bubbles: hand-drawn white ovals with thin ink outlines, Burmese text inside. "
@@ -246,7 +246,6 @@ def _enhance_prompt(prompt: str) -> str:
         "Ink wash or loose sketch line shading, no smooth digital gradients. "
         "Warm beige/cream paper background (#f5e6c8), soft watercolor palette. "
         "Simple background with 3-5 setting-appropriate props. "
-        "Artist signature in bottom-right corner. "
     )
     full = f"{style_prefix}{prompt}"
     if len(full) > 2000:

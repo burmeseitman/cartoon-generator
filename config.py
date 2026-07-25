@@ -43,6 +43,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 CARTOON_DIR.mkdir(parents=True, exist_ok=True)
 
 # News sources - free APIs
+# Each run picks SUBSET_SIZE sources at random for topic diversity
 NEWS_SOURCES = {
     "google_news_ai": {
         "name": "Google News - AI",
@@ -52,7 +53,29 @@ NEWS_SOURCES = {
         "name": "Google News - Cybersecurity",
         "url": "https://news.google.com/rss/search?q=cybersecurity+hacking+data+breach&hl=en-US&gl=US&ceid=US:en",
     },
+    "google_news_tech": {
+        "name": "Google News - Technology",
+        "url": "https://news.google.com/rss/search?q=technology+gadgets+innovation&hl=en-US&gl=US&ceid=US:en",
+    },
+    "google_news_science": {
+        "name": "Google News - Science",
+        "url": "https://news.google.com/rss/search?q=science+discovery+space+research&hl=en-US&gl=US&ceid=US:en",
+    },
+    "google_news_business": {
+        "name": "Google News - Business",
+        "url": "https://news.google.com/rss/search?q=business+economy+startup&hl=en-US&gl=US&ceid=US:en",
+    },
+    "google_news_world": {
+        "name": "Google News - World",
+        "url": "https://news.google.com/rss/search?q=world+news+global+trend&hl=en-US&gl=US&ceid=US:en",
+    },
+    "google_news_social": {
+        "name": "Google News - Social Media",
+        "url": "https://news.google.com/rss/search?q=social+media+privacy+internet&hl=en-US&gl=US&ceid=US:en",
+    },
 }
+# Number of sources to sample each run (for topic diversity)
+NEWS_SOURCE_SUBSET_SIZE = 4
 
 # Alternative news API (requires key)
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
@@ -161,7 +184,7 @@ def is_safe_url(url: str) -> bool:
     return url_lower.startswith(("http://", "https://"))
 
 # Max news articles to process per run
-MAX_ARTICLES = 5
+MAX_ARTICLES = 20
 
 # Comedy style presets
 COMEDY_STYLES = [

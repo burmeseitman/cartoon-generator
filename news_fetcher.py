@@ -7,11 +7,14 @@ from datetime import datetime, timedelta
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
+import random
+
 import requests
 from typing import Any
 
 from config import (
     NEWS_SOURCES,
+    NEWS_SOURCE_SUBSET_SIZE,
     NEWS_API_KEY,
     NEWS_API_URL,
     MAX_ARTICLES,
@@ -58,7 +61,7 @@ def _fetch_rss_feed(url: str) -> list[dict[str, Any]]:
         descriptions = re.findall(r"<description>(.*?)</description>", raw)
         pub_dates = re.findall(r"<pubDate>(.*?)</pubDate>", raw)
 
-        for i in range(min(len(titles), 15)):  # Limit per source
+        for i in range(min(len(titles), 30)):  # Limit per source
             # Sanitize description: strip HTML tags and control characters
             desc_clean = re.sub(r"<[^>]+>", "", descriptions[i] if i < len(descriptions) else "").strip()
             # Remove control characters (except newline/tab) to prevent log injection
@@ -130,8 +133,13 @@ def fetch_trending_news() -> list[dict[str, Any]]:
     """
     all_articles = []
 
-    # Fetch from RSS feeds (free, no key needed)
-    for source_key, source_info in NEWS_SOURCES.items():
+    # Fetch from a random subset of RSS feeds each run (topic diversity)
+    source_keys = list(NEWS_SOURCES.keys())
+    random.shuffle(source_keys)
+    selected_keys = source_keys[:NEWS_SOURCE_SUBSET_SIZE]
+
+    for source_key in selected_keys:
+        source_info = NEWS_SOURCES[source_key]
         if not is_safe_url(source_info["url"]):
             logger.warning(f"Skipping unsafe news source: {source_info['name']}")
             continue
@@ -149,8 +157,8 @@ def fetch_trending_news() -> list[dict[str, Any]]:
     # Deduplicate by similar titles
     unique = _deduplicate_titles(all_articles)
 
-    # Sort by fetched_at (newest first)
-    unique.sort(key=lambda a: a.get("fetched_at", ""), reverse=True)
+    # Shuffle to surface different topics each run (not always newest first)
+    random.shuffle(unique)
 
     logger.info(f"Fetched {len(unique)} unique articles total.")
     return unique[:MAX_ARTICLES]

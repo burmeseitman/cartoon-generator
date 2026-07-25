@@ -21,7 +21,7 @@ Given the following news article, provide:
      cybersecurity news, living room for general tech news, etc.)
    - CHARACTERS: Create 2-5 characters that fit the news context (e.g. office workers,
      doctors, students, IT staff, scientists, or general public). Make them Burmese
-     people with thanaka on cheeks, casual or work-appropriate clothing (longyi, shirts).
+     people (girls/ladies sometimes with thanaka on cheeks), casual or work-appropriate clothing (longyi, shirts).
      At least one character should react dramatically (shock, laughter, facepalm).
      Include a robot/AI character if the news is tech-related (white dome head,
      blue LED eyes, friendly).

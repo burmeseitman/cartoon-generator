@@ -14,7 +14,6 @@ This document captures the visual style of a Burmese cartoonist. The environment
 - **Shading**: ink wash or loose sketch lines — no smooth digital gradients
 - **Speech bubbles**: hand-drawn white ovals with thin black outlines
 - **Yellow title banner** at the very top with bold black Burmese text
-- **Artist signature** in bottom-right corner (small handwritten-style mark)
 - **Overall feel**: like a page from a Burmese comic magazine or a newspaper editorial cartoon
 
 ---
@@ -27,7 +26,7 @@ This document captures the visual style of a Burmese cartoonist. The environment
 - **Minimal facial details** — small dot nose, expressive mouth shapes
 - **Body proportions**: slightly oversized heads, compact bodies — typical cartoon proportion
 - **Skin tone**: warm light-brown / peach
-- **Thanaka** — traditional yellowish-white cosmetic paste on cheeks (圆形 or leaf-shaped patterns) — a signature Burmese detail
+- **Thanaka** — traditional yellowish-white cosmetic paste on cheeks (circular or leaf-shaped patterns) — on girls/ladies only, not all characters, not every scene
 - **Clothing**: casual, colorful patterns (longyi, plaid, floral, striped)
 
 ### Human Characters — Burmese People
@@ -35,7 +34,7 @@ This document captures the visual style of a Burmese cartoonist. The environment
 - **Traditional/casual wear**: longyi (sarong-style wrap), casual shirts, sandals (rubber slippers)
 - **Facial features**: warm smiles, rounded faces, highly expressive eyebrows
 - **Posture**: relaxed, approachable, often sitting on low stools or floor cushions
-- **Accessories**: shoulder bags (typically worn across chest), umbrellas, thanaka on cheeks
+- **Accessories**: shoulder bags (typically worn across chest), umbrellas
 
 ### Animal Characters — Don't Care Attitude
 - **Facial expression**: deadpan, unimpressed, sleepy, or completely indifferent
@@ -127,7 +126,7 @@ At least one character should react dramatically. One animal should be completel
 ```
 A hand-drawn Burmese cartoon illustration, ink line art style with watercolor wash coloring.
 [ENVIRONMENT with Burmese local details — tea shop, office, school, etc.]
-[Character descriptions with thanaka on cheeks, longyi, casual Burmese clothing]
+[Character descriptions — girls/ladies sometimes with thanaka on cheeks, longyi, casual Burmese clothing]
 [Animal character with a "don't care" expression]
 [Scene: what's happening, what's funny about the news topic]
 [Speech bubbles with humorous Burmese dialogue]
@@ -135,7 +134,7 @@ Bold black ink outlines, organic hand-drawn feel, expressive faces and dramatic 
 Yellow title banner at top with bold black Burmese text saying [TOPIC IN BURMESE].
 Watercolor coloring, warm beige/cream paper background, loose sketch shading.
 [Background props relevant to the setting]
-Artist signature in bottom-right corner.
+
 ```
 
 ---

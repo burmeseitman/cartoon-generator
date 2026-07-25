@@ -1,16 +1,17 @@
 # Cartoon Generator
 
-A background job that fetches trending AI and cybersecurity news, analyzes them from a comedian's viewpoint, and generates funny cartoon images featuring family comic characters with Burmese dialogue.
+A background job that fetches trending news across tech, cybersecurity, business, and world topics, analyzes them from a comedian's viewpoint, and generates funny Burmese cartoon-style images with Burmese dialogue.
 
 ## Features
 
-- Fetches trending AI and cybersecurity news from free APIs
+- Fetches trending news from 7 topic categories (AI, cybersecurity, tech, science, business, world, social media)
+- Random source subset each run for topic diversity
 - Analyzes news articles from a comedian/comedy perspective
-- Generates funny cartoon images using Gemini API (primary) with Pollinations.ai fallback
-- Consistent character designs via [Cartoon Style Guide](CARTOON_STYLE_GUIDE.md) — father, mother, son, robot/AI helper, and orange tabby cat
+- Generates funny Burmese cartoon-style images using Gemini API (primary) with Pollinations.ai fallback
+- Characters and environments adapt to the news topic (not a fixed family)
+- Burmese cartoonist art style — bold ink outlines, watercolor wash, hand-drawn feel
 - Burmese language speech bubbles and title banners
-- Warm family comic art style with soft watercolor coloring
-- Deduplication check to avoid generating duplicate cartoons from the past 30 days
+- Topic deduplication over 30-day window to avoid repeats
 - Runs as a background job with no frontend
 - Saves output to an `output/` folder
 - 28 unit tests for core modules
@@ -97,7 +98,7 @@ A **deduplication gate** sits between fetching and analysis, checking `history.j
 
 ### Pipeline Flow
 
-1. **Fetch** — Queries Google News RSS (free) and optional NewsAPI for trending AI & cybersecurity articles
+1. **Fetch** — Queries a random subset of Google News RSS feeds (7 topic categories) and optional NewsAPI; fetches up to 20 articles, shuffled for variety
 2. **Deduplicate** — Compares titles using Jaccard similarity; skips articles processed within the past 30 days
 3. **Analyze** — Uses OpenAI GPT (or built-in heuristic fallback) to generate a comedic angle, scene description, and one-liner joke. The [style guide](CARTOON_STYLE_GUIDE.md) is injected into the AI prompt for consistent character references
 4. **Enhance** — Visual style block (character designs, color palette, layout) is prepended to the scene description by `_enhance_prompt()`
@@ -110,11 +111,11 @@ The generator uses a flexible style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_
 
 | Element | Description |
 |---|---|
-| **Environment** | Adapts to the news — office, hospital, classroom, server room, living room, etc. |
-| **Characters** | 2-5 Burmese characters fitting the news context (workers, doctors, students, etc.) + optional robot/AI for tech news |
+| **Environment** | Adapts to the news — office, hospital, classroom, tea shop, server room, etc. |
+| **Characters** | 2-5 Burmese characters fitting the news context; girls/ladies sometimes wear thanaka |
 | **Animal** | One "don't care" animal (cat, dog, bird) with deadpan expression or lazy posture — comedic contrast |
-| **Art style** | Soft watercolor, gentle gradients, no harsh outlines, cute rounded designs |
-| **Speech bubbles** | White rounded ovals with thin black outlines — **Burmese text** |
+| **Art style** | Hand-drawn Burmese cartoon — bold black ink outlines, watercolor wash, hand-painted feel |
+| **Speech bubbles** | White rounded ovals with thin ink outlines — **Burmese text** |
 | **Title banner** | Yellow banner at top with bold black **Burmese text** |
 | **Tone** | Humorous but wholesome, light satire, dramatic reactions + unbothered animal |
 
@@ -123,7 +124,7 @@ The generator uses a flexible style defined in [CARTOON_STYLE_GUIDE.md](CARTOON_
 | Module | Responsibility | Key Functions |
 |---|---|---|---|
 | `config.py` | Constants, env vars, filename builder, logging setup | `build_filename()`, `sanitize_filename()`, `is_safe_url()`, `setup_logging()` |
-| `news_fetcher.py` | Fetch & parse news from external APIs | `fetch_trending_news()`, `_fetch_rss_feed()`, `_sanitize_text()` |
+| `news_fetcher.py` | Fetch & parse news from diverse topic sources | `fetch_trending_news()`, `_fetch_rss_feed()`, `_sanitize_text()` |
 | `comedian_analyzer.py` | Generate comedy angles & scene descriptions | `analyze_article()`, `analyze_with_openai()`, `fallback_comedy_analysis()` |
 | `cartoon_generator.py` | Generate & save cartoon images | `generate_cartoon()`, `_save_image()`, `_enhance_prompt()`, `_generate_with_gemini()` |
 | `deduplication.py` | Track processed items, prevent repeats | `is_duplicate()`, `add_to_history()`, `cleanup_old_history()` |
