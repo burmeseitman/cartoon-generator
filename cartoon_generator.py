@@ -1,4 +1,9 @@
-"""Generates funny cartoon images using free APIs."""
+"""Generates funny cartoon images using Gemini API (primary) with Pollinations.ai fallback.
+
+Image generation pipeline:
+  1. Try Gemini API (high quality, needs GEMINI_API_KEY)
+  2. Fall back to Pollinations.ai (free, no key needed)
+"""
 import hashlib
 import logging
 import random
@@ -9,7 +14,7 @@ from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-from config import CARTOON_DIR, build_filename
+from config import CARTOON_DIR, GEMINI_API_KEY, POLLINATIONS_BASE_URL, build_filename
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +22,8 @@ logger = logging.getLogger(__name__)
 def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Generate a funny cartoon image from the comedy analysis.
 
-    Uses Pollinations.ai (free, no API key required).
+    Tries Gemini API first (higher quality). Falls back to Pollinations.ai if
+    Gemini key is not set or fails.
     Returns metadata about the generated image.
     """
     cartoon_prompt = comedy_analysis.get("cartoon_prompt", "")
@@ -34,43 +40,179 @@ def generate_cartoon(comedy_analysis: Dict[str, Any]) -> Optional[Dict[str, Any]
 
     # Generate a deterministic seed from the title for reproducibility
     seed = int(hashlib.md5(title.encode()).hexdigest()[:8], 16) % (2**32 - 1)
-
-    # Use the article title as the description for filename
     description_for_filename = title
 
-    # Try multiple seeds if the first doesn't produce a good result
+    # --- Try Gemini first ---
+    if GEMINI_API_KEY:
+        logger.info("Trying Gemini API for image generation...")
+        try:
+            result = _generate_with_gemini(enhanced_prompt, title, seed)
+            if result:
+                logger.info(f"Cartoon generated via Gemini: {result['filename']}")
+                return result
+            else:
+                logger.warning("Gemini returned no image; falling back to Pollinations.ai")
+        except Exception as e:
+            logger.warning(f"Gemini generation failed ({e}); falling back to Pollinations.ai")
+    else:
+        logger.info("GEMINI_API_KEY not set; using Pollinations.ai directly.")
+
+    # --- Fallback: Pollinations.ai ---
+    logger.info("Using Pollinations.ai fallback...")
     for attempt in range(3):
         current_seed = seed + attempt * 1000
         encoded_prompt = quote(enhanced_prompt, safe="")
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={current_seed}"
+        url = f"{POLLINATIONS_BASE_URL}/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&seed={current_seed}"
 
         try:
             filename = _save_image(url, description_for_filename, current_seed)
             if filename:
-                logger.info(f"Cartoon generated: {filename}")
+                logger.info(f"Cartoon generated via Pollinations: {filename}")
                 return {
-                    "filename": filename,
-                    "url": url,
-                    "seed": current_seed,
-                    "prompt": enhanced_prompt,
-                    "generated_at": datetime.now().isoformat(),
-                    "one_liner": one_liner,
-                    "comedian_angle": comedy_analysis.get("comedian_angle", ""),
-                    "title": title,
-                    "article_url": article_url,
+                    **_base_result(url, current_seed, enhanced_prompt, one_liner,
+                                   comedian_angle=comedy_analysis.get("comedian_angle", ""),
+                                   title=title, article_url=article_url),
+                    "source": "pollinations_ai",
                 }
         except Exception as e:
-            logger.warning(f"Image generation attempt {attempt + 1} failed: {e}")
+            logger.warning(f"Pollinations attempt {attempt + 1} failed: {e}")
             time.sleep(1)
 
-    logger.error("All image generation attempts failed.")
+    logger.error("All image generation attempts failed (Gemini + Pollinations).")
     return None
+
+
+def _base_result(url: str, seed: int, prompt: str, one_liner: str,
+                 comedian_angle: str, title: str, article_url: str) -> Dict:
+    """Common result dict shared by both generators."""
+    return {
+        "url": url,
+        "seed": seed,
+        "prompt": prompt,
+        "generated_at": datetime.now().isoformat(),
+        "one_liner": one_liner,
+        "comedian_angle": comedian_angle,
+        "title": title,
+        "article_url": article_url,
+    }
+
+
+def _generate_with_gemini(prompt: str, title: str, seed: int) -> Optional[Dict[str, Any]]:
+    """Generate cartoon using Google Gemini Flash image generation API.
+
+    Uses the Gemini REST API to create images from text prompts.
+    Returns result dict with filename, or None on failure.
+    """
+    import json
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt}
+            ]
+        }],
+        "generationConfig": {
+            "responseModalities": ["IMAGE", "TEXT"],
+        },
+    }
+
+    headers = {"Content-Type": "application/json"}
+
+    try:
+        req = Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers,
+            method="POST",
+        )
+        with urlopen(req, timeout=90) as response:
+            raw = response.read().decode("utf-8")
+            data = json.loads(raw)
+
+        # Extract inline data (base64 image) from response
+        parts = data.get("candidates", [{}]).get("content", {}).get("parts", [])
+        for part in parts:
+            if "inline_data" in part:
+                mime_type = part["inline_data"].get("mime_type", "image/png")
+                b64_data = part["inline_data"].get("data", "")
+                if b64_data:
+                    import base64
+                    image_bytes = base64.b64decode(b64_data)
+                    return _save_image_bytes(image_bytes, mime_type, title, seed)
+
+        logger.warning("Gemini response contained no image data.")
+        return None
+
+    except Exception as e:
+        logger.warning(f"Gemini API request failed: {e}")
+        return None
+
+
+def _save_image_bytes(image_data: bytes, mime_type: str, description: str, seed: int) -> Optional[Dict[str, Any]]:
+    """Save image bytes directly (from Gemini base64 decode) to disk.
+
+    Security: validates MIME type, prevents path traversal, restricts output to CARTOON_DIR.
+    """
+    ext = ".jpg" if "jpeg" in mime_type else ".png" if "png" in mime_type else ".jpg"
+
+    try:
+        # Validate it's actually an image using Pillow
+        from PIL import Image
+        from io import BytesIO
+
+        img = Image.open(BytesIO(image_data))
+        img.verify()
+        # Safe to reopen after verify
+        img = Image.open(BytesIO(image_data))
+
+    except ImportError:
+        logger.warning("Pillow not installed; saving raw image without validation.")
+    except Exception as e:
+        logger.warning(f"Pillow validation failed ({e}); saving anyway.")
+
+    filename = build_filename(description, ext=ext)
+
+    # Prevent path traversal
+    if "/" in filename or "\\" in filename or filename.startswith("."):
+        logger.warning(f"Rejected suspicious filename: {filename}")
+        return None
+
+    filepath = CARTOON_DIR / filename
+    resolved = filepath.resolve()
+    if not str(resolved).startswith(str(CARTOON_DIR.resolve())):
+        logger.warning(f"Path traversal detected: {filepath}")
+        return None
+
+    # Handle collision
+    counter = 1
+    base, file_ext = filename.rsplit(".", 1)
+    while filepath.exists():
+        filename = f"{base}_{counter}.{file_ext}"
+        filepath = CARTOON_DIR / filename
+        counter += 1
+
+    with open(filepath, "wb") as f:
+        f.write(image_data)
+
+    logger.info(f"Saved cartoon image to {filepath}")
+
+    return {
+        "filename": filename,
+        "seed": seed,
+        "generated_at": datetime.now().isoformat(),
+        "source": "gemini",
+    }
 
 
 def _enhance_prompt(prompt: str) -> str:
     """Enhance the cartoon prompt for better image generation results.
 
-    Truncates to max 120 chars to avoid Pollinations.ai 500 errors on long prompts.
+    Truncates to max 120 chars to avoid API errors on long prompts.
     """
     enhancements = [
         "funny cartoon, vibrant colors, exaggerated expressions,",
@@ -81,19 +223,16 @@ def _enhance_prompt(prompt: str) -> str:
     ]
     enhancement = enhancements[random.randint(0, len(enhancements) - 1)]
     full = f"{enhancement} {prompt}"
-    # Truncate to avoid 500 errors from Pollinations.ai
     if len(full) > 120:
         full = full[:117] + "..."
     return full
 
 
 def _save_image(url: str, description: str, seed: int) -> Optional[str]:
-    """Download and save the generated image with configurable filename format.
+    """Download and save an image from a URL.
 
-    Security: validates URL scheme, prevents path traversal in filenames,
-    restricts output to CARTOON_DIR only.
+    Used by Pollinations.ai fallback path.
     """
-    # Validate URL scheme
     if not url.startswith("https://"):
         logger.warning(f"Rejected unsafe image URL scheme: {url}")
         return None
@@ -103,33 +242,23 @@ def _save_image(url: str, description: str, seed: int) -> Optional[str]:
         with urlopen(req, timeout=60) as response:
             image_data = response.read()
 
-        # Validate it's actually an image
         from PIL import Image
         from io import BytesIO
-
         img = Image.open(BytesIO(image_data))
-        img.verify()  # This checks if it's a valid image
-
-        # Safe to reopen after verify
+        img.verify()
         img = Image.open(BytesIO(image_data))
 
-        # Build filename using the configured format
         filename = build_filename(description, ext=".jpg")
-
-        # Prevent path traversal — filename must be a single component
         if "/" in filename or "\\" in filename or filename.startswith("."):
             logger.warning(f"Rejected suspicious filename: {filename}")
             return None
 
         filepath = CARTOON_DIR / filename
-
-        # Resolve and verify the final path is still inside CARTOON_DIR
         resolved = filepath.resolve()
         if not str(resolved).startswith(str(CARTOON_DIR.resolve())):
             logger.warning(f"Path traversal detected: {filepath}")
             return None
 
-        # Handle collision: if file already exists, append a counter
         counter = 1
         base, ext = filename.rsplit(".", 1)
         while filepath.exists():
@@ -155,11 +284,7 @@ def _save_image(url: str, description: str, seed: int) -> Optional[str]:
 
 
 def _save_without_validation(url: str, description: str, seed: int) -> Optional[str]:
-    """Fallback image saving without Pillow validation.
-
-    Security: validates URL scheme, prevents path traversal in filenames.
-    """
-    # Validate URL scheme
+    """Fallback image saving without Pillow validation."""
     if not url.startswith("https://"):
         logger.warning(f"Rejected unsafe image URL scheme: {url}")
         return None
@@ -169,23 +294,17 @@ def _save_without_validation(url: str, description: str, seed: int) -> Optional[
         with urlopen(req, timeout=60) as response:
             image_data = response.read()
 
-        # Build filename using the configured format
         filename = build_filename(description, ext=".jpg")
-
-        # Prevent path traversal
         if "/" in filename or "\\" in filename or filename.startswith("."):
             logger.warning(f"Rejected suspicious filename: {filename}")
             return None
 
         filepath = CARTOON_DIR / filename
-
-        # Resolve and verify the final path is still inside CARTOON_DIR
         resolved = filepath.resolve()
         if not str(resolved).startswith(str(CARTOON_DIR.resolve())):
             logger.warning(f"Path traversal detected: {filepath}")
             return None
 
-        # Handle collision
         counter = 1
         base, ext = filename.rsplit(".", 1)
         while filepath.exists():

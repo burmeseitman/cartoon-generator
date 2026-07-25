@@ -44,10 +44,13 @@ NEWS_API_URL = "https://newsapi.org/v2/top-headlines"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
-# Image generation - Pollinations.ai (free, no API key needed)
-# Pollinations.ai image generation endpoint
-# Note: prompt must be URL-encoded (quote(prompt, safe="")) before use
-POLLINATIONS_API = "https://image.pollinations.ai"
+# Gemini API for image generation (primary, needs API key)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+GEMINI_IMAGE_SIZE = os.getenv("GEMINI_IMAGE_SIZE", "1024x1024")
+
+# Pollinations.ai (fallback, free, no API key needed)
+POLLINATIONS_BASE_URL = "https://image.pollinations.ai"
 
 # Deduplication settings
 DEDUP_WINDOW_DAYS = 30
