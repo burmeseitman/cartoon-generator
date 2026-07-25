@@ -86,7 +86,16 @@ cartoon-generator/
 
 The system consists of **four core modules** orchestrated by `main.py`:
 
-<img src="docs/architecture.svg" alt="System Architecture">
+```mermaid
+flowchart LR
+    RSS["Google News RSS / NewsAPI"] --> NF["News Fetcher"]
+    NF --> DG["Dedup Gate"]
+    DG --> CA["Comedian Analyzer"]
+    AI["OpenAI / Fallback"] --> CA
+    CA --> CG["Cartoon Generator"]
+    GEN["Gemini API / Pollinations.ai"] --> CG
+    CG --> OUT["Output"]
+```
 
 A **deduplication gate** sits between fetching and analysis, checking `history.json` against a 30-day window to prevent re-processing the same story.
 
